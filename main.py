@@ -1,46 +1,43 @@
 import os
 import json
-from typing import List
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from azure.ai.documentintelligence import DocumentIntelligenceClient 
+from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
 
 app = FastAPI(title="Azure OCR Backend")
 
-# Azure 設定（Render の環境変数）
+# =========================
+# Azure 設定（Render 環境変数）
+# =========================
 AZURE_ENDPOINT = os.getenv("AZURE_ENDPOINT")
 AZURE_KEY = os.getenv("AZURE_KEY")
 
 if not AZURE_ENDPOINT or not AZURE_KEY:
     raise RuntimeError("AZURE_ENDPOINT or AZURE_KEY is missing")
 
-# インスタンス化するクラス名も変更
 client = DocumentIntelligenceClient(
     endpoint=AZURE_ENDPOINT,
     credential=AzureKeyCredential(AZURE_KEY)
 )
 
+# =========================
+# ヘルスチェック
+# =========================
 @app.get("/")
 def health_check():
     return {"status": "ok"}
-
 
 # =========================
 # OCR加工ロジック
 # =========================
 def extract_ocr_content(result) -> str:
-    """
-    OCR全文（最大3000文字）
-    """
+    """OCR全文（最大3000文字）"""
     content = getattr(result, "content", "") or ""
     return content[:3000]
 
 
 def extract_items(result) -> list:
-    """
-    tables から簡易items抽出
-    （後で品目・数量・金額に強化可能）
-    """
+    """tables から簡易items抽出"""
     items = []
 
     for table in getattr(result, "tables", []) or []:
@@ -55,9 +52,7 @@ def extract_items(result) -> list:
 
 
 def extract_structured_data(result) -> dict:
-    """
-    Invoiceモデルの structured data
-    """
+    """Invoiceモデルの structured data"""
     documents = getattr(result, "documents", []) or []
     if not documents:
         return {}
@@ -75,56 +70,41 @@ def extract_structured_data(result) -> dict:
 
 
 def normalize_invoice_result(filename: str, analyze_result: object) -> dict:
-    """
-    Dify / LLM / API 共通で安全な最終形
-    """
-    ocr_content = extract_ocr_content(analyze_result)
-    items = extract_items(analyze_result)
-    structured_data = extract_structured_data(analyze_result)
-
+    """Dify / LLM / API 共通で安全な最終形"""
     return {
         "filename": filename,
-        "ocr_content": ocr_content,
-        "ocr_items": json.dumps(items, ensure_ascii=False),
-        "ocr_data": json.dumps(structured_data, ensure_ascii=False)
+        "ocr_content": extract_ocr_content(analyze_result),
+        "ocr_items": json.dumps(
+            extract_items(analyze_result),
+            ensure_ascii=False
+        ),
+        "ocr_data": json.dumps(
+            extract_structured_data(analyze_result),
+            ensure_ascii=False
+        )
     }
 
-
+# =========================
+# 請求書OCR（単一ファイル）
+# =========================
 @app.post("/analyze/invoice")
 async def analyze_invoice(
-    files: List[UploadFile] = File(...)
+    file: UploadFile = File(...)
 ):
-    results = []
+    try:
+        content = await file.read()
 
-    for file in files:
-        try:
-            content = await file.read()
+        poller = client.begin_analyze_document(
+            model_id="prebuilt-invoice",
+            body=content
+        )
 
-            poller = client.begin_analyze_document(
-                model_id="prebuilt-invoice",
-                body=content  # document ではなく body
-            )
+        analyze_result = poller.result()
 
-            analyze_result = poller.result()
+        return normalize_invoice_result(
+            filename=file.filename,
+            analyze_result=analyze_result
+        )
 
-            normalized = normalize_invoice_result(
-                filename=file.filename,
-                analyze_result=analyze_result
-            )
-
-            results.append(normalized)
-
-        except Exception as e:
-            # 1ファイル失敗しても全体は返す
-            results.append({
-                "filename": file.filename,
-                "error": str(e),
-                "ocr_content": "",
-                "ocr_items": "[]",
-                "ocr_data": "{}"
-            })
-
-    return {
-        "count": len(files),
-        "results": results
-    }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
