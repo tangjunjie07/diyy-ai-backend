@@ -1,4 +1,5 @@
 import os
+from typing import List
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from azure.ai.documentintelligence import DocumentIntelligenceClient 
 from azure.core.credentials import AzureKeyCredential
