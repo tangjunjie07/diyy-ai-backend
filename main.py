@@ -1,6 +1,6 @@
 import os
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from azure.ai.documentintelligence import DocumentAnalysisClient
+from azure.ai.documentintelligence import DocumentIntelligenceClient 
 from azure.core.credentials import AzureKeyCredential
 
 app = FastAPI(title="Azure OCR Backend")
@@ -12,7 +12,8 @@ AZURE_KEY = os.getenv("AZURE_KEY")
 if not AZURE_ENDPOINT or not AZURE_KEY:
     raise RuntimeError("AZURE_ENDPOINT or AZURE_KEY is missing")
 
-client = DocumentAnalysisClient(
+# インスタンス化するクラス名も変更
+client = DocumentIntelligenceClient(
     endpoint=AZURE_ENDPOINT,
     credential=AzureKeyCredential(AZURE_KEY)
 )
