@@ -23,22 +23,36 @@ def health_check():
     return {"status": "ok"}
 
 @app.post("/analyze/invoice")
-async def analyze_invoice(file: UploadFile = File(...)):
-    try:
-        content = await file.read()
+async def analyze_invoice(
+    files: List[UploadFile] = File(...)
+):
+    results = []
 
-        poller = client.begin_analyze_document(
-            model_id="prebuilt-invoice",
-            body=content  # document ではなく body
-        )
+    for file in files:
+        try:
+            content = await file.read()
 
-        result = poller.result()
+            poller = client.begin_analyze_document(
+                model_id="prebuilt-invoice",
+                body=content  # document ではなく body
+            )
 
-        return {
-            "filename": file.filename,
-            "model": "prebuilt-invoice",
-            "result": result
-        }
+            result = poller.result()
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            results.append({
+                "filename": file.filename,
+                "model": "prebuilt-invoice",
+                "result": result
+            })
+
+        except Exception as e:
+            # 1ファイル失敗しても全体を落とさない
+            results.append({
+                "filename": file.filename,
+                "error": str(e)
+            })
+
+    return {
+        "count": len(files),
+        "results": results
+    }
