@@ -29,7 +29,7 @@ async def analyze_invoice(file: UploadFile = File(...)):
 
         poller = client.begin_analyze_document(
             model_id="prebuilt-invoice",
-            document=content
+            body=content  # document ではなく body
         )
 
         result = poller.result()

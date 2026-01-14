@@ -1,6 +1,5 @@
 fastapi
 uvicorn
 python-multipart
-
 azure-ai-documentintelligence==1.0.0
-azure-core==1.29.7
+azure-core>=1.30.0
