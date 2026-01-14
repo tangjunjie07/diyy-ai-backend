@@ -1,4 +1,5 @@
 import os
+import json
 from typing import List
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from azure.ai.documentintelligence import DocumentIntelligenceClient 
@@ -23,6 +24,72 @@ client = DocumentIntelligenceClient(
 def health_check():
     return {"status": "ok"}
 
+
+# =========================
+# OCR加工ロジック
+# =========================
+def extract_ocr_content(result) -> str:
+    """
+    OCR全文（最大3000文字）
+    """
+    content = getattr(result, "content", "") or ""
+    return content[:3000]
+
+
+def extract_items(result) -> list:
+    """
+    tables から簡易items抽出
+    （後で品目・数量・金額に強化可能）
+    """
+    items = []
+
+    for table in getattr(result, "tables", []) or []:
+        for cell in table.cells:
+            items.append({
+                "row": cell.row_index,
+                "col": cell.column_index,
+                "text": cell.content
+            })
+
+    return items
+
+
+def extract_structured_data(result) -> dict:
+    """
+    Invoiceモデルの structured data
+    """
+    documents = getattr(result, "documents", []) or []
+    if not documents:
+        return {}
+
+    doc = documents[0]
+    data = {}
+
+    for key, field in doc.fields.items():
+        data[key] = {
+            "value": field.content,
+            "confidence": field.confidence
+        }
+
+    return data
+
+
+def normalize_invoice_result(filename: str, analyze_result: object) -> dict:
+    """
+    Dify / LLM / API 共通で安全な最終形
+    """
+    ocr_content = extract_ocr_content(analyze_result)
+    items = extract_items(analyze_result)
+    structured_data = extract_structured_data(analyze_result)
+
+    return {
+        "filename": filename,
+        "ocr_content": ocr_content,
+        "ocr_items": json.dumps(items, ensure_ascii=False),
+        "ocr_data": json.dumps(structured_data, ensure_ascii=False)
+    }
+
+
 @app.post("/analyze/invoice")
 async def analyze_invoice(
     files: List[UploadFile] = File(...)
@@ -38,19 +105,23 @@ async def analyze_invoice(
                 body=content  # document ではなく body
             )
 
-            result = poller.result()
+            analyze_result = poller.result()
 
-            results.append({
-                "filename": file.filename,
-                "model": "prebuilt-invoice",
-                "result": result
-            })
+            normalized = normalize_invoice_result(
+                filename=file.filename,
+                analyze_result=analyze_result
+            )
+
+            results.append(normalized)
 
         except Exception as e:
-            # 1ファイル失敗しても全体を落とさない
+            # 1ファイル失敗しても全体は返す
             results.append({
                 "filename": file.filename,
-                "error": str(e)
+                "error": str(e),
+                "ocr_content": "",
+                "ocr_items": "[]",
+                "ocr_data": "{}"
             })
 
     return {
