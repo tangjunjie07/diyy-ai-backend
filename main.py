@@ -1,6 +1,9 @@
 import os
 import json
+import requests
+import time
 from typing import List
+from pydantic import BaseModel
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from azure.ai.documentintelligence import DocumentIntelligenceClient 
 from azure.core.credentials import AzureKeyCredential
@@ -127,4 +130,73 @@ async def analyze_invoice(
     return {
         "count": len(files),
         "results": results
+    }
+
+# 模擬 Money Forward API 的調用函數
+def call_money_forward_api(item):
+    """
+    這裡替換成實際的 MF API 調用邏輯
+    URL: https://api.moneyforward.com/v1/journal_entries 等
+    """
+    # 這裡僅作模擬邏輯
+    if item.get("totalAmount", 0) <= 0:
+        raise Exception("金額不正：金額必須大於 0")
+    
+    # 模擬網絡請求成功
+    # response = requests.post(url, json=item, headers=headers)
+    # response.raise_for_status()
+    return True
+
+@app.post("/mf/register")
+async def register_to_mf(request: Request):
+    # 接收來自 Dify 的 Body
+    body = await request.json()
+    
+    # 獲取傳入的 json_text 並轉回 Python 列表
+    # Dify 傳過來時可能是 {"journal_data": "[{...}]"}
+    json_text = body.get("journal_data", "[]")
+    
+    try:
+        journal_list = json.loads(json_text) if isinstance(json_text, str) else json_text
+    except Exception as e:
+        return {"error": "JSON 解析失敗", "details": str(e)}
+
+    total = len(journal_list)
+    success_count = 0
+    failure_count = 0
+    details = []
+    failed_items_data = [] # 用於重新打包失敗的原始數據
+
+    for item in journal_list:
+        filename = item.get("filename", "unknown")
+        try:
+            # 執行 MF 註冊
+            call_money_forward_api(item)
+            
+            success_count += 1
+            details.append({
+                "filename": filename,
+                "status": "success"
+            })
+        except Exception as e:
+            failure_count += 1
+            error_msg = str(e)
+            details.append({
+                "filename": filename,
+                "status": "failed",
+                "error": error_msg
+            })
+            # 將失敗的原始物件打包，方便 Dify 下一輪修正
+            failed_items_data.append(item)
+        
+        # 防止 API 頻率限制，適度延遲
+        time.sleep(0.1)
+
+    return {
+        "total": total,
+        "success_count": success_count,
+        "failure_count": failure_count,
+        "details": details,
+        # 新增：失敗項目的原始 JSON 數據，Dify 可以拿這個再去修復
+        "failed_items": json.dumps(failed_items_data, ensure_ascii=False) if failed_items_data else ""
     }
