@@ -1,0 +1,3 @@
+{
+  "json_text": "[{\"totalAmount\": 1000, \"invoiceDate\": \"2025-12-31\", \"currency\": \"JPY\", \"projectId\": \"No.31167-01 048498\", \"accounting\": [{\"accountItem\": \"水道光熱費\", \"subAccountItem\": \"駐車場料金\", \"amount\": 1000, \"date\": \"2025-12-31\", \"confidence\": 0.4, \"reasoning\": \"駐車料金は水道光熱費として計上される可能性があるが、明確な基準がないため不確実性がある。\", \"is_anomaly\": false}], \"summary\": \"駐車場の利用に関する領収書。\", \"filename\": \"图片_20260110211904_83_3.jpg\"}]"
+}
