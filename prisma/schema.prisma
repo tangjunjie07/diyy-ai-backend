@@ -1,0 +1,352 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ========================================
+// アカウント関連テーブル
+// ========================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refreshToken      String? @map("refresh_token")
+  accessToken       String? @map("access_token")
+  expiresAt         Int?    @map("expires_at")
+  tokenType         String? @map("token_type")
+  scope             String?
+  idToken           String? @map("id_token")
+  sessionState      String? @map("session_state")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// ========================================
+// セッション管理テーブル
+// ========================================
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("sessions")
+}
+
+// ========================================
+// ユーザー管理テーブル
+// ========================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  password      String?
+  role          String    @default("user")
+  tenantId      String?   @map("tenant_id") // テナントIDを追加
+  createdAt     DateTime  @default(now()) @map("created_at")
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id])
+  accounts      Account[]
+  sessions      Session[]
+  chatSessions  ChatSession[]
+  @@map("app_users")
+}
+
+// ========================================
+// 認証トークン管理テーブル
+// ========================================
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ========================================
+// テナント管理テーブル
+// 役割: マルチテナントをサポートし、各テナントのデータを分離
+// ========================================
+
+model Tenant {
+  id           String   @id @default(cuid())
+  code         String   @unique  // テナントコード（ログイン時に使用）
+  name         String   // テナント表示名
+  countryCode  String   @map("country_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+  users        User[]
+  chatFiles    ChatFile[] // InvoiceをChatFileに変更
+  ocrResults   OcrResult[]
+  reconciliations Reconciliation[]
+  journalEntries JournalEntry[]
+  claudePredictions ClaudePrediction[]
+  mfJournalEntries MfJournalEntry[]
+  @@map("tenants")
+}
+
+// ========================================
+// チャットファイル処理テーブル（Invoiceの代わり）
+// ========================================
+model ChatFile {
+
+  id               String    @id @default(cuid())
+  difyId           String    @map("dify_id") // Dify会話ID（必須）
+  fileUrl          String?   @map("file_url") // ファイルURL
+  fileName         String?   @map("file_name") // ファイル名
+  fileSize         Int?      @map("file_size") // ファイルサイズ（バイト）
+  mimeType         String?   @map("mime_type") // MIMEタイプ
+  // OCR結果はOcrResultテーブル参照に統一
+  // AI解析結果も専用テーブル参照に変更
+  extractedAmount  Float?    @map("extracted_amount") // 抽出された金額
+  extractedDate    DateTime? @map("extracted_date") // 抽出された日付
+  status           String?   @default("pending") @map("status") // pending/processing/completed/failed
+  errorMessage     String?   @map("error_message") // エラーメッセージ
+  processedAt      DateTime? @map("processed_at") // 処理完了時間
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  // テナントリレーション
+  tenantId         String?   @map("tenant_id")
+  tenant           Tenant?   @relation(fields: [tenantId], references: [id])
+
+  // リレーション
+  chatSession      ChatSession @relation(fields: [difyId], references: [difyId], onDelete: Cascade)
+  ocrResults       OcrResult[]
+  aiResults        AiResult[]
+  claudePredictions ClaudePrediction[]
+  reconciliations  Reconciliation[]
+
+  @@index([difyId])
+  @@index([status])
+  @@map("chat_files")
+}
+
+// ========================================
+// AI解析結果保存テーブル
+// 役割: ファイルに対するAI解析結果を保存
+// ========================================
+model AiResult {
+  id         String   @id @default(cuid())
+  chatFileId String   @map("chat_file_id")
+  result     Json     @map("result") // AI解析結果JSON
+  status     String?  @default("processing")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  chatFile   ChatFile @relation(fields: [chatFileId], references: [id])
+  @@map("ai_results")
+}
+
+// ========================================
+// OCR結果保存テーブル
+// 役割: ファイルに対するOCR処理結果を保存
+// ========================================
+
+model OcrResult {
+  id         String   @id @default(cuid())
+  tenantId   String?  @map("tenant_id") // オプショナルに変更
+  chatFileId String?  @map("chat_file_id") // InvoiceからChatFileに変更
+  fileName   String   @map("file_name")
+  ocrResult    String   @map("ocr_result")
+  confidence Float?   @default(0.0)
+  status     String?  @default("processing")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant     Tenant?   @relation(fields: [tenantId], references: [id])
+  chatFile   ChatFile? @relation(fields: [chatFileId], references: [id])
+  @@map("ocr_results")
+}
+
+// ========================================
+// 照合管理テーブル
+// 役割: 請求書と仕訳の照合状態を管理
+// ========================================
+
+model Reconciliation {
+  id            String   @id @default(cuid())
+  tenantId      String?  @map("tenant_id") // オプショナルに変更
+  chatFileId    String?  @map("chat_file_id") // InvoiceからChatFileに変更
+  journalEntryId String  @map("journal_entry_id")
+  status        String?  @default("pending")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant        Tenant?     @relation(fields: [tenantId], references: [id])
+  chatFile      ChatFile?   @relation(fields: [chatFileId], references: [id])
+  journalEntry  JournalEntry @relation(fields: [journalEntryId], references: [id])
+  @@map("reconciliations")
+}
+
+// ========================================
+// 仕訳データ保存テーブル
+// 役割: 会計システムの仕訳データを保存
+// ========================================
+
+model JournalEntry {
+  id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id")
+  date          DateTime
+  description   String
+  debitAccount  String   @map("debit_account")
+  creditAccount String   @map("credit_account")
+  amount        Float
+  currency      String?  @default("JPY")
+  reference     String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  reconciliations Reconciliation[]
+  @@map("journal_entries")
+}
+
+// ========================================
+// Claude予測結果保存テーブル
+// ========================================
+model ClaudePrediction {
+  id                  String    @id @default(cuid())
+  tenantId            String?   @map("tenant_id") // オプショナルに変更
+  chatFileId          String?   @map("chat_file_id") // InvoiceからChatFileに変更
+  
+  // 入力データ（OCRから取得した情報）
+  inputVendor         String    @map("input_vendor")         // OCR認識の取引先名
+  inputDescription    String    @map("input_description")    // 摘要
+  inputAmount         Float     @map("input_amount")         // 金額
+  inputDirection      String    @map("input_direction")      // 取引方向（income/expense）
+  
+  // Claude予測結果
+  predictedAccount    String    @map("predicted_account")    // 予測された勘定科目
+  accountConfidence   Float     @map("account_confidence")   // 勘定科目の信頼度
+  reasoning           String?   @map("reasoning")            // 判断理由
+  
+  // 取引先マスタ照合結果
+  matchedVendorId     String?   @map("matched_vendor_id")    // 照合された取引先ID
+  matchedVendorCode   String?   @map("matched_vendor_code")  // 照合された取引先コード（現状はID同値）
+  matchedVendorName   String?   @map("matched_vendor_name")  // 照合された取引先正式名称
+  vendorConfidence    Float?    @map("vendor_confidence")    // 取引先照合の信頼度
+
+  // 勘定科目マスタ照合結果
+  matchedAccountId    String?   @map("matched_account_id")   // 照合された勘定科目ID（現状はcode同値）
+  matchedAccountCode  String?   @map("matched_account_code") // 照合された勘定科目コード
+  matchedAccountName  String?   @map("matched_account_name") // 照合された勘定科目名（正式名称）
+  
+  // Claude APIメタデータ
+  claudeModel         String    @map("claude_model")         // 使用したモデル名
+  tokensUsed          Int?      @map("tokens_used")          // 使用トークン数
+  rawResponse         String?   @map("raw_response") @db.Text // Claudeの生レスポンス（デバッグ用）
+  
+  // ステータスとタイムスタンプ
+  status              String    @default("completed") @map("status") // completed/failed/pending
+  errorMessage        String?   @map("error_message")        // エラーメッセージ（失敗時）
+  
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // リレーション
+  tenant              Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chatFile            ChatFile? @relation(fields: [chatFileId], references: [id], onDelete: SetNull)
+  
+  // インデックス
+  @@index([tenantId, createdAt])
+  @@index([chatFileId])
+  @@index([status])
+  @@map("claude_predictions")
+}
+
+// ========================================
+// Money Forward仕訳データ保存テーブル
+// 役割: Money Forwardへのエクスポート用仕訳データを管理
+// ========================================
+
+model MfJournalEntry {
+  id                  String    @id @default(cuid())
+  tenantId            String    @map("tenant_id")
+  claudePredictionId  String?   @map("claude_prediction_id") // 関連するClaude予測ID
+  
+  // Money Forwardフォーマットフィールド
+  transactionDate     DateTime  @map("transaction_date")     // 取引日
+  transactionType     String    @map("transaction_type")     // 取引区分（収入/支出）
+  
+  // 金額（入金・出金を分けて保存）
+  incomeAmount        Float?    @map("income_amount")        // 入金額
+  expenseAmount       Float?    @map("expense_amount")       // 出金額
+  
+  // 勘定科目と取引先
+  accountSubject      String    @map("account_subject")      // 勘定科目
+  matchedAccountId    String?   @map("matched_account_id")   // 勘定科目ID（現状はcode同値）
+  matchedAccountCode  String?   @map("matched_account_code") // 勘定科目コード
+  vendor              String?   @map("vendor")               // 取引先
+  matchedVendorId     String?   @map("matched_vendor_id")    // 取引先ID
+  matchedVendorCode   String?   @map("matched_vendor_code")  // 取引先コード（現状はID同値）
+  description         String?   @map("description")          // 摘要
+  
+  // その他MFフィールド
+  accountBook         String?   @map("account_book")         // 口座（決済口座）
+  taxCategory         String?   @map("tax_category")         // 税区分
+  memo                String?   @map("memo")                 // メモ
+  tagNames            String?   @map("tag_names")            // タグ（カンマ区切り）
+  
+  // エクスポート・インポート管理
+  csvExported         Boolean   @default(false) @map("csv_exported") // CSV出力済みフラグ
+  csvExportedAt       DateTime? @map("csv_exported_at")      // CSV出力日時
+  mfImported          Boolean   @default(false) @map("mf_imported")  // MFインポート済みフラグ
+  mfImportedAt        DateTime? @map("mf_imported_at")       // MFインポート日時
+  mfJournalId         String?   @map("mf_journal_id")        // MF側の仕訳ID（インポート後に取得）
+  
+  // ステータス
+  status              String    @default("draft") @map("status") // draft/ready/exported/imported/error
+  errorMessage        String?   @map("error_message")        // エラーメッセージ
+  
+  // タイムスタンプ
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // リレーション
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // インデックス
+  @@index([tenantId, transactionDate])
+  @@index([status])
+  @@index([csvExported])
+  @@index([mfImported])
+  @@map("mf_journal_entries")
+}
+
+// ========================================
+// Dify連携用チャットセッション管理テーブル
+// ========================================
+model ChatSession {
+  id         String   @id @default(uuid()) // 自社システム内でのセッション識別子
+  userId     String   @map("user_id") // ユーザーID（誰の会話か）
+  difyId     String   @map("dify_id") // Dify側のconversation_id
+  title      String?  // サイドバーに表示する名称（任意に変更可能）
+  isPinned   Boolean  @default(false) @map("is_pinned") // ピン留め状態
+  updatedAt  DateTime @updatedAt @map("updated_at") // 最終発言日時
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // リレーション
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatFiles  ChatFile[] // 一个会话对应多个文件
+
+  @@index([userId, updatedAt])
+  @@unique([difyId])
+  @@map("chat_sessions")
+}
