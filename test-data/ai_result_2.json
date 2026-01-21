@@ -1,0 +1,24 @@
+{
+  "summary": "",
+  "file_name": "PHOTO-2026-01-06-12-07-03.jpg",
+  "inferred_accounts": [
+    {
+      "summary": "フルーツみかみへの外注費としての支払いを記録。",
+      "currency": "JPY",
+      "projectId": "プロジェクトコード",
+      "accounting": [
+        {
+          "date": "2025-12-30",
+          "amount": 7575,
+          "reasoning": "領収証の発行元が(有) フルーツみかみであり、外注費としての支払いが考えられるため。",
+          "confidence": 0.8,
+          "is_anomaly": false,
+          "accountItem": "外注費",
+          "subAccountItem": "フルーツみかみ"
+        }
+      ],
+      "invoiceDate": "2025-12-30",
+      "totalAmount": 7575
+    }
+  ]
+}

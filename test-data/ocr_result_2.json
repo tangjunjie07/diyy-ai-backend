@@ -1,0 +1,27 @@
+{
+  "ocr_data": {
+    "vendor": "(\u6709) \u30d5\u30eb\u30fc\u30c4\u307f\u304b\u307f"
+  },
+  "ocr_content": "0000-7550\n\u9818 \u53ce \u8a3c\n2025\u5e7412\u670830\u65e5\u706b\u66dc\u65e5\n\u69d8\n\u00a57,575-\n(\u6d88\u8cbb\u7a0e\u7b49 \u00a5561)\n\u4f46\u3057\u3001\n(\u6709) \u30d5\u30eb\u30fc\u30c4\u307f\u304b\u307f\n\u6771\u4eac\u90fd\u8352\u5ddd\u533a\u6771\u5c3e\u4e455-26-3\n\u62c5\u5f53\u8005 :selected:\nTEL:03-3893-5608\n*\u4fdd\u7ba1\u4e0a\u306e\u304a\u9858\u3044\n\u767b\u9332\u756a\u53f7:T8011502010882\n\u9818\u53ce\u8a3cNo 1222\n\u8ca1\u5e03\u7b49\u3067\u4fdd\u7ba1\u6234\u304f\u5834\u5408\u3001\u5370\u5237\u9762\u3092\u5185\u5074\u306b\u6298\u3063\u3066\u4fdd\u7ba1\u9858\u3044\u307e\u3059\u3002 :unselected: :unselected: :unselected: :unselected: :selected: :selected:",
+  "inferred_accounts": [
+    {
+      "totalAmount": 7575,
+      "invoiceDate": "2025-12-30",
+      "currency": "JPY",
+      "projectId": "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30b3\u30fc\u30c9",
+      "accounting": [
+        {
+          "accountItem": "\u5916\u6ce8\u8cbb",
+          "subAccountItem": "\u30d5\u30eb\u30fc\u30c4\u307f\u304b\u307f",
+          "amount": 7575,
+          "date": "2025-12-30",
+          "confidence": 0.8,
+          "reasoning": "\u9818\u53ce\u8a3c\u306e\u767a\u884c\u5143\u304c(\u6709) \u30d5\u30eb\u30fc\u30c4\u307f\u304b\u307f\u3067\u3042\u308a\u3001\u5916\u6ce8\u8cbb\u3068\u3057\u3066\u306e\u652f\u6255\u3044\u304c\u8003\u3048\u3089\u308c\u308b\u305f\u3081\u3002",
+          "is_anomaly": false
+        }
+      ],
+      "summary": "\u30d5\u30eb\u30fc\u30c4\u307f\u304b\u307f\u3078\u306e\u5916\u6ce8\u8cbb\u3068\u3057\u3066\u306e\u652f\u6255\u3044\u3092\u8a18\u9332\u3002"
+    }
+  ],
+  "file_name": "PHOTO-2026-01-06-12-07-03.jpg"
+}

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends
 import json
 import time
 from auth import verify_token
+from services.chat_session_service import chat_session_service
 
 router = APIRouter(prefix="/mf", tags=["MF"])
 
@@ -13,6 +14,9 @@ def call_money_forward_api(item: dict):
 @router.post("/register")
 async def register_to_mf(request: Request, token_payload: dict = Depends(verify_token)):
     body = await request.json()
+    tenant_id = body.get("tenantId")
+    if not tenant_id:
+        return {"success": False, "error": "tenantId is required"}
     json_text = body.get("journal_data", "[]")
     try:
         journal_list = json.loads(json_text) if isinstance(json_text, str) else json_text
@@ -24,8 +28,21 @@ async def register_to_mf(request: Request, token_payload: dict = Depends(verify_
     failed_items_data = []
     for item in journal_list:
         filename = item.get("filename", "unknown")
+        # OCR返却項目名に合わせてchat_file_idを取得
+        chat_file_id = item.get("chat_file_id") or item.get("chatFileId")
+        # 金額・日付は取れた場合のみ更新
+        extracted_amount = item.get("totalAmount") if "totalAmount" in item else None
+        extracted_date = item.get("invoiceDate") if "invoiceDate" in item else None
         try:
             call_money_forward_api(item)
+            # MF連携成功時にChatFileを更新
+            if chat_file_id and tenant_id:
+                update_kwargs = {"chat_file_id": chat_file_id, "tenant_id": tenant_id, "status": "mf_completed"}
+                if extracted_amount is not None:
+                    update_kwargs["extracted_amount"] = extracted_amount
+                if extracted_date is not None:
+                    update_kwargs["extracted_date"] = extracted_date
+                await chat_session_service.update_chat_file(**update_kwargs)
             success_count += 1
             details.append({
                 "filename": filename,

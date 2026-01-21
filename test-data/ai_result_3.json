@@ -1,0 +1,24 @@
+{
+  "summary": "",
+  "file_name": "图片_20260110211849_82_3.jpg",
+  "inferred_accounts": [
+    {
+      "summary": "海鮮バルでの支出は社内イベントに関連するものと推測されるため、福利厚生費として処理しました。",
+      "currency": "JPY",
+      "projectId": "プロジェクトコード",
+      "accounting": [
+        {
+          "date": "YYYY-MM-DD",
+          "amount": 21692,
+          "reasoning": "海鮮バルは社内イベントや福利厚生に関連する支出と考えられるため、福利厚生費に分類しました。",
+          "confidence": 0.7,
+          "is_anomaly": false,
+          "accountItem": "福利厚生費",
+          "subAccountItem": "社内イベント"
+        }
+      ],
+      "invoiceDate": "YYYY-MM-DD",
+      "totalAmount": 21692
+    }
+  ]
+}
