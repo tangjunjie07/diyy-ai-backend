@@ -16,8 +16,8 @@ curl -X POST http://localhost:8000/ai/result \
    -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzdXBlcmFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6InN1cGVyX2FkbWluIiwidXNlcl9pZCI6ImNta242eHY0ZTAwMDAwdmo2MDh3YXdrbDEifQ.ajk44FQQ9zi6qNLciW47vJdoUbDlSQYCko-9wzVXkac" \
    -H "Content-Type: application/json" \
    -d '{
-      "tenantId": "cmknfj9ns0001aruejainwyqk",
-      "json_text": "[{\"chatFileId\": \"d94f1049-1d89-4839-9af5-956b43425430\", \"totalAmount\": 7575, \"invoiceDate\": \"2025-12-30\", \"currency\": \"JPY\", \"projectId\": \"プロジェクトコード\", \"accounting\": [{\"accountItem\": \"外注費\", \"subAccountItem\": \"協力会社への業務委託\", \"amount\": 7575, \"date\": \"2025-12-30\", \"confidence\": 0.6, \"reasoning\": \"フルーツみかみが業務委託先と考えられるため外注費に分類したが、詳細な内容が不明なため信頼度は低い。\", \"is_anomaly\": false}], \"summary\": \"フルーツみかみへの支払いに関する領収書。内容の詳細は不明のため、外注費として計上。\", \"filename\": \"PHOTO-2026-01-06-12-07-03.jpg\"}]"
+      "tenantId": "cmknae8ra0000q7j6ay572od3",
+      "json_text": "[{\"chatFileId\": \"cmknfj9ns0001aruejainwyqk\", \"totalAmount\": 7575, \"invoiceDate\": \"2025-12-30\", \"currency\": \"JPY\", \"projectId\": \"プロジェクトコード\", \"accounting\": [{\"accountItem\": \"外注費\", \"subAccountItem\": \"協力会社への業務委託\", \"amount\": 7575, \"date\": \"2025-12-30\", \"confidence\": 0.6, \"reasoning\": \"フルーツみかみが業務委託先と考えられるため外注費に分類したが、詳細な内容が不明なため信頼度は低い。\", \"is_anomaly\": false}], \"summary\": \"フルーツみかみへの支払いに関する領収書。内容の詳細は不明のため、外注費として計上。\", \"filename\": \"PHOTO-2026-01-06-12-07-03.jpg\"}]"
    }'
 ```
 

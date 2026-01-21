@@ -66,12 +66,24 @@ class ChatSessionService:
         return None, None
 
     async def register_ai_result(self, chat_file_id: str, result, status: str = None):
+        # 既存のAiResultを検索
+        existing = await self.prisma.airesult.find_first(
+            where={"chatFileId": chat_file_id}
+        )
         data = {
-            "chatFileId": chat_file_id,
             "result": result,
             "status": status or "processing"
         }
-        return await self.prisma.airesult.create(data)
+        if existing:
+            # 更新
+            return await self.prisma.airesult.update(
+                where={"id": existing.id},
+                data=data
+            )
+        else:
+            # 新規作成
+            data["chatFileId"] = chat_file_id
+            return await self.prisma.airesult.create(data)
 
     async def update_chat_file(self, chat_file_id: str, tenant_id: str = None, extracted_amount: float = None, extracted_date = None, status: str = None):
         data = {}
