@@ -1,0 +1,102 @@
+[
+    {
+        "id": "V001",
+        "name": "株式会社ABC商事",
+        "name_kana": "カブシキガイシャエービーシーショウジ",
+        "aliases": [
+            "ABC商事",
+            "ABC",
+            "エービーシー商事",
+            "(株)ABC商事"
+        ],
+        "category": "仕入先",
+        "active": true
+    },
+    {
+        "id": "V002",
+        "name": "株式会社XYZ物産",
+        "name_kana": "カブシキガイシャエックスワイゼットブッサン",
+        "aliases": [
+            "XYZ物産",
+            "XYZ",
+            "エックスワイゼット",
+            "㈱XYZ物産"
+        ],
+        "category": "仕入先",
+        "active": true
+    },
+    {
+        "id": "V003",
+        "name": "DEF株式会社",
+        "name_kana": "ディーイーエフカブシキガイシャ",
+        "aliases": [
+            "DEF",
+            "ディーイーエフ",
+            "DEF(株)"
+        ],
+        "category": "得意先",
+        "active": true
+    },
+    {
+        "id": "V004",
+        "name": "東京電力エナジーパートナー株式会社",
+        "name_kana": "トウキョウデンリョクエナジーパートナーカブシキガイシャ",
+        "aliases": [
+            "東京電力",
+            "東電",
+            "TEPCO",
+            "東京電力EP"
+        ],
+        "category": "光熱費",
+        "active": true
+    },
+    {
+        "id": "V005",
+        "name": "株式会社NTTドコモ",
+        "name_kana": "カブシキガイシャエヌティティドコモ",
+        "aliases": [
+            "ドコモ",
+            "docomo",
+            "NTTドコモ"
+        ],
+        "category": "通信費",
+        "active": true
+    },
+    {
+        "id": "V006",
+        "name": "アマゾンジャパン合同会社",
+        "name_kana": "アマゾンジャパンゴウドウガイシャ",
+        "aliases": [
+            "Amazon",
+            "アマゾン",
+            "Amazon.co.jp",
+            "Amazon Japan"
+        ],
+        "category": "仕入先",
+        "active": true
+    },
+    {
+        "id": "V007",
+        "name": "グーグル合同会社",
+        "name_kana": "グーグルゴウドウガイシャ",
+        "aliases": [
+            "Google",
+            "グーグル",
+            "Google Japan"
+        ],
+        "category": "広告",
+        "active": true
+    },
+    {
+        "id": "V008",
+        "name": "株式会社三菱UFJ銀行",
+        "name_kana": "カブシキガイシャミツビシユーエフジェイギンコウ",
+        "aliases": [
+            "三菱UFJ",
+            "MUFG",
+            "三菱UFJ銀行"
+        ],
+        "category": "金融機関",
+        "active": true
+    }
+]
