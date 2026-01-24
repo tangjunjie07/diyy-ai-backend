@@ -12,6 +12,8 @@ import json
 import re
 from typing import Any, Dict, List, Optional
 
+from app.account_classifier.transaction import normalize_transaction_dict
+
 
 def _infer_vendor_from_summary(summary: str) -> str:
     text = (summary or "").strip()
@@ -111,7 +113,7 @@ def extract_transactions_from_pending_journal_data(*, pending_journal_data: Any)
                     except Exception:
                         direction = "expense"
 
-                txs.append(
+                normalized = normalize_transaction_dict(
                     {
                         "date": date,
                         "vendor": vendor or "",
@@ -129,6 +131,8 @@ def extract_transactions_from_pending_journal_data(*, pending_journal_data: Any)
                         "_ref": acc,
                     }
                 )
+                if normalized is not None:
+                    txs.append(normalized)
             continue
 
         # fallback: 単一取引として扱う
@@ -139,7 +143,7 @@ def extract_transactions_from_pending_journal_data(*, pending_journal_data: Any)
             except Exception:
                 direction = "expense"
 
-        txs.append(
+        normalized = normalize_transaction_dict(
             {
                 "date": invoice_date or "",
                 "vendor": vendor or "",
@@ -153,6 +157,8 @@ def extract_transactions_from_pending_journal_data(*, pending_journal_data: Any)
                 "_ref": item,
             }
         )
+        if normalized is not None:
+            txs.append(normalized)
 
     return txs
 
@@ -188,7 +194,7 @@ def extract_transactions_from_inferred_accounts(
         # すでに transaction っぽい形の場合はそのまま扱う
         if "amount" in item and ("direction" in item or "type" in item):
             direction = item.get("direction") or item.get("type") or "expense"
-            txs.append(
+            normalized = normalize_transaction_dict(
                 {
                     "date": item.get("date") or date_default or "",
                     "vendor": item.get("vendor") or vendor_default or "",
@@ -199,6 +205,8 @@ def extract_transactions_from_inferred_accounts(
                     "_ref": item,
                 }
             )
+            if normalized is not None:
+                txs.append(normalized)
             continue
 
         # ingestion-service 側の inferred_accounts 形式: {"items": [...]} 
@@ -208,7 +216,7 @@ def extract_transactions_from_inferred_accounts(
                 if not isinstance(child, dict):
                     continue
                 direction = child.get("direction") or child.get("type") or item.get("direction") or "expense"
-                txs.append(
+                normalized = normalize_transaction_dict(
                     {
                         "date": child.get("date") or item.get("date") or date_default or "",
                         "vendor": child.get("vendor") or item.get("vendor") or vendor_default or "",
@@ -219,10 +227,12 @@ def extract_transactions_from_inferred_accounts(
                         "_ref": child,
                     }
                 )
+                if normalized is not None:
+                    txs.append(normalized)
             continue
 
         # 最低限の fallback
-        txs.append(
+        normalized = normalize_transaction_dict(
             {
                 "date": item.get("date") or date_default or "",
                 "vendor": item.get("vendor") or vendor_default or "",
@@ -233,5 +243,7 @@ def extract_transactions_from_inferred_accounts(
                 "_ref": item,
             }
         )
+        if normalized is not None:
+            txs.append(normalized)
 
     return txs

@@ -8,6 +8,8 @@ from datetime import datetime
 from io import StringIO
 from typing import List, Dict
 
+from app.account_classifier.formatting import build_journal_memo
+
 logger = logging.getLogger(__name__)
 
 
@@ -115,6 +117,12 @@ class MfExportService:
         description = transaction.get('description', '')
         file_name = transaction.get('fileName', '')
 
+        memo_text = build_journal_memo(
+            reason=transaction.get('reasoning') or transaction.get('claude_description') or '',
+            account_confidence=transaction.get('account_confidence') if transaction.get('account_confidence') is not None else transaction.get('confidence'),
+            vendor_confidence=transaction.get('vendor_confidence'),
+        ) or ''
+
         # 摘要にファイル名を追加（オプション）
         if file_name and description:
             full_description = f"{description} ({file_name})"
@@ -146,7 +154,7 @@ class MfExportService:
                 '貸方金額(円)': str(amount),
                 '貸方税額': '0',
                 '摘要': full_description,
-                '仕訳メモ': '',
+                '仕訳メモ': memo_text,
                 'タグ': 'AI自動仕訳',
                 'MF仕訳タイプ': 'インポート',
                 '決算整理仕訳': '',
@@ -173,7 +181,7 @@ class MfExportService:
                 '貸方金額(円)': str(amount),
                 '貸方税額': '0',
                 '摘要': full_description,
-                '仕訳メモ': '',
+                '仕訳メモ': memo_text,
                 'タグ': 'AI自動仕訳',
                 'MF仕訳タイプ': 'インポート',
                 '決算整理仕訳': '',
