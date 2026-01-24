@@ -20,7 +20,80 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+from pydantic import BaseModel, ConfigDict
+
+from app.account_classifier.formatting import normalize_confidence_ratio
+
 logger = logging.getLogger(__name__)
+
+
+class _ClaudeAccountMatch(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    code: Optional[str] = None
+    name: Optional[str] = None
+    confidence: Optional[float] = None
+
+
+class _ClaudeVendorMatch(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: Optional[str] = None
+    name: Optional[str] = None
+    confidence: Optional[float] = None
+
+
+class _ClaudeResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    account: Optional[str] = None
+    confidence: Optional[float] = None
+    reasoning: Optional[str] = None
+
+    description: Optional[str] = None
+    normalized_description: Optional[str] = None
+
+    account_match: Optional[_ClaudeAccountMatch] = None
+    vendor_match: Optional[_ClaudeVendorMatch] = None
+
+    # Backward/alternate field names (best-effort)
+    matched_account_code: Optional[str] = None
+    matched_account_name: Optional[str] = None
+    matchedAccountCode: Optional[str] = None
+    matchedAccountName: Optional[str] = None
+    account_confidence: Optional[float] = None
+    accountConfidence: Optional[float] = None
+
+    matched_vendor_id: Optional[str] = None
+    matched_vendor_name: Optional[str] = None
+    matchedVendorId: Optional[str] = None
+    matchedVendorName: Optional[str] = None
+    vendor_confidence: Optional[float] = None
+    vendorConfidence: Optional[float] = None
+
+
+def _extract_first_json_object(text: str) -> Optional[Dict[str, Any]]:
+    """Extract the first JSON object from free-form model output."""
+
+    if not text:
+        return None
+
+    # Strip common code fences
+    cleaned = text.strip()
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    start = cleaned.find("{")
+    if start < 0:
+        return None
+
+    decoder = json.JSONDecoder()
+    try:
+        obj, _ = decoder.raw_decode(cleaned[start:])
+    except Exception:
+        return None
+
+    return obj if isinstance(obj, dict) else None
 
 
 @dataclass
@@ -138,57 +211,51 @@ class ClaudePredictor:
                 content += block.text
         content = content.strip()
 
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0].strip()
-
         raw_response = content
-
-        try:
-            result = json.loads(content)
-        except Exception as e:
-            logger.exception("Failed to parse Claude response: %s", e)
+        payload = _extract_first_json_object(content)
+        if payload is None:
+            logger.debug("Claude response did not contain a JSON object; fallback")
             fallback = self._fallback_prediction(direction)
             fallback.raw_response = raw_response
             fallback.model = used_model
             fallback.tokens_used = tokens_used
             return fallback
 
-        account = str(result.get("account") or "")
-        confidence = float(result.get("confidence") or 0.5)
-        reasoning = result.get("reasoning") or ""
-        description = result.get("description") or result.get("normalized_description") or None
+        try:
+            parsed = _ClaudeResponse.model_validate(payload)
+        except Exception as e:
+            logger.debug("Failed to validate Claude response; fallback: %s", e)
+            fallback = self._fallback_prediction(direction)
+            fallback.raw_response = raw_response
+            fallback.model = used_model
+            fallback.tokens_used = tokens_used
+            return fallback
+
+        account = str(parsed.account or "")
+        confidence = normalize_confidence_ratio(parsed.confidence) if parsed.confidence is not None else None
+        if confidence is None:
+            confidence = 0.5
+        reasoning = parsed.reasoning or ""
+        description = parsed.description or parsed.normalized_description or None
 
         matched_account_code: Optional[str] = None
         matched_account_name: Optional[str] = None
         account_confidence: Optional[float] = None
 
-        account_match = result.get("account_match")
-        if isinstance(account_match, dict):
-            matched_account_code = account_match.get("code")
-            matched_account_name = account_match.get("name")
-            if account_match.get("confidence") is not None:
-                try:
-                    account_confidence = float(account_match.get("confidence"))
-                except Exception:
-                    account_confidence = None
+        if parsed.account_match is not None:
+            matched_account_code = parsed.account_match.code
+            matched_account_name = parsed.account_match.name
+            account_confidence = normalize_confidence_ratio(parsed.account_match.confidence)
 
         if not matched_account_name:
-            matched_account_name = result.get("matched_account_name") or result.get("matchedAccountName")
+            matched_account_name = parsed.matched_account_name or parsed.matchedAccountName
         if not matched_account_code:
-            matched_account_code = result.get("matched_account_code") or result.get("matchedAccountCode")
+            matched_account_code = parsed.matched_account_code or parsed.matchedAccountCode
+
         if account_confidence is None:
-            if result.get("account_confidence") is not None:
-                try:
-                    account_confidence = float(result.get("account_confidence"))
-                except Exception:
-                    account_confidence = None
-            elif result.get("accountConfidence") is not None:
-                try:
-                    account_confidence = float(result.get("accountConfidence"))
-                except Exception:
-                    account_confidence = None
+            account_confidence = normalize_confidence_ratio(parsed.account_confidence)
+        if account_confidence is None:
+            account_confidence = normalize_confidence_ratio(parsed.accountConfidence)
 
         if matched_account_name:
             account = str(matched_account_name)
@@ -199,28 +266,16 @@ class ClaudePredictor:
         matched_vendor_name: Optional[str] = None
         vendor_confidence: Optional[float] = None
 
-        vendor_match = result.get("vendor_match")
-        if isinstance(vendor_match, dict):
-            matched_vendor_id = vendor_match.get("id")
-            matched_vendor_name = vendor_match.get("name")
-            if vendor_match.get("confidence") is not None:
-                try:
-                    vendor_confidence = float(vendor_match.get("confidence"))
-                except Exception:
-                    vendor_confidence = None
+        if parsed.vendor_match is not None:
+            matched_vendor_id = parsed.vendor_match.id
+            matched_vendor_name = parsed.vendor_match.name
+            vendor_confidence = normalize_confidence_ratio(parsed.vendor_match.confidence)
         else:
-            matched_vendor_id = result.get("matched_vendor_id") or result.get("matchedVendorId")
-            matched_vendor_name = result.get("matched_vendor_name") or result.get("matchedVendorName")
-            if result.get("vendor_confidence") is not None:
-                try:
-                    vendor_confidence = float(result.get("vendor_confidence"))
-                except Exception:
-                    vendor_confidence = None
-            elif result.get("vendorConfidence") is not None:
-                try:
-                    vendor_confidence = float(result.get("vendorConfidence"))
-                except Exception:
-                    vendor_confidence = None
+            matched_vendor_id = parsed.matched_vendor_id or parsed.matchedVendorId
+            matched_vendor_name = parsed.matched_vendor_name or parsed.matchedVendorName
+            vendor_confidence = normalize_confidence_ratio(parsed.vendor_confidence)
+            if vendor_confidence is None:
+                vendor_confidence = normalize_confidence_ratio(parsed.vendorConfidence)
 
         # Validate/normalize with master candidates (best-effort)
         if account_masters:

@@ -12,10 +12,29 @@ This module depends on asyncpg (Pool/Connection).
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+from app.account_classifier.formatting import build_journal_memo
+
+logger = logging.getLogger(__name__)
+
+
+def _utcnow() -> datetime:
+    # Keep naive UTC datetimes for compatibility with existing DB schemas.
+    return datetime.utcnow()
+
+
+async def _set_rls_tenant(conn: Any, tenant_id: str) -> None:
+    """Best-effort: set per-session tenant id for Postgres RLS."""
+
+    try:
+        await conn.execute("SELECT set_config('app.current_tenant_id', $1, true)", str(tenant_id))
+    except Exception as e:
+        logger.debug("Failed to set RLS tenant_id=%s: %s", tenant_id, e)
 
 
 def _parse_date(value: object) -> Optional[datetime]:
@@ -68,7 +87,7 @@ class ClaudePredictionService:
         error_message: Optional[str] = None,
     ) -> str:
         prediction_id = str(uuid.uuid4())
-        now = datetime.utcnow()
+        now = _utcnow()
 
         query = """
         INSERT INTO claude_predictions (
@@ -110,11 +129,7 @@ class ClaudePredictionService:
         """
 
         async with self.db_pool.acquire() as conn:
-            # RLS 用のセッション変数
-            try:
-                await conn.execute("SELECT set_config('app.current_tenant_id', $1, true)", str(tenant_id))
-            except Exception:
-                pass
+            await _set_rls_tenant(conn, tenant_id)
 
             row = await conn.fetchrow(
                 query,
@@ -174,7 +189,7 @@ class MfJournalEntryService:
         error_message: Optional[str] = None,
     ) -> str:
         entry_id = str(uuid.uuid4())
-        now = datetime.utcnow()
+        now = _utcnow()
 
         query = """
         INSERT INTO mf_journal_entries (
@@ -220,10 +235,7 @@ class MfJournalEntryService:
         """
 
         async with self.db_pool.acquire() as conn:
-            try:
-                await conn.execute("SELECT set_config('app.current_tenant_id', $1, true)", str(tenant_id))
-            except Exception:
-                pass
+            await _set_rls_tenant(conn, tenant_id)
 
             row = await conn.fetchrow(
                 query,
@@ -264,20 +276,18 @@ def convert_transaction_to_mf_journal_fields(tx: Dict[str, Any]) -> Dict[str, An
     account_subject = tx.get("accountName") or ("雑費" if direction == "expense" else "売上高")
     transaction_date = _parse_date(tx.get("date"))
     if transaction_date is None:
-        transaction_date = datetime.now()
+        transaction_date = _utcnow()
 
     income_amount = abs_amount if direction == "income" else None
     expense_amount = abs_amount if direction != "income" else None
 
     default_tax = "課税売上10%" if direction == "income" else "課税仕入10%"
 
-    memo_parts = []
-    file_name = tx.get("fileName")
-    if isinstance(file_name, str) and file_name.strip():
-        memo_parts.append(f"file={file_name.strip()}")
-    reasoning = tx.get("reasoning")
-    if isinstance(reasoning, str) and reasoning.strip():
-        memo_parts.append(f"reasoning={reasoning.strip()}")
+    memo_text = build_journal_memo(
+        reason=tx.get("reasoning") or tx.get("claude_description") or tx.get("memo"),
+        account_confidence=tx.get("account_confidence") if tx.get("account_confidence") is not None else tx.get("confidence"),
+        vendor_confidence=tx.get("vendor_confidence"),
+    )
 
     return {
         "transaction_date": transaction_date,
@@ -294,6 +304,6 @@ def convert_transaction_to_mf_journal_fields(tx: Dict[str, Any]) -> Dict[str, An
         "description": tx.get("reasoning") or tx.get("claude_description") or tx.get("description"),
         "account_book": tx.get("account_book") or "普通預金",
         "tax_category": tx.get("tax_category") or default_tax,
-        "memo": tx.get("memo") or ("; ".join(memo_parts) if memo_parts else None),
+        "memo": memo_text,
         "tag_names": tx.get("tag_names") or "AI自動仕訳",
     }

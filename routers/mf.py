@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import time
 import secrets
@@ -20,6 +21,8 @@ from app.repos.tenant_api_secrets_repo import PROVIDER_ANTHROPIC, get_tenant_api
 from auth import verify_token
 from services.chat_session_service import chat_session_service
 
+logger = logging.getLogger(__name__)
+
 try:
     import asyncpg  # type: ignore
 except Exception:  # pragma: no cover
@@ -34,6 +37,11 @@ _db_pool_lock = asyncio.Lock()
 _csv_exports: Dict[str, Dict[str, Any]] = {}
 _csv_exports_lock = asyncio.Lock()
 _CSV_EXPORT_TTL_SECONDS = int(os.getenv("MF_CSV_EXPORT_TTL_SECONDS", "900"))  # default 15 minutes
+
+
+def _csv_utf8_with_bom(csv_text: str) -> bytes:
+    # Excel on Windows often mis-detects UTF-8 without BOM.
+    return ("\ufeff" + (csv_text or "")).encode("utf-8")
 
 
 def _public_base_url_from_request(request: Request) -> str:
@@ -52,7 +60,12 @@ def _public_base_url_from_request(request: Request) -> str:
     return base.replace("host.docker.internal", "localhost")
 
 
-async def _store_csv_export(csv_text: str) -> Dict[str, str]:
+async def _store_csv_export(
+    csv_text: str,
+    *,
+    tenant_id: Optional[str] = None,
+    mf_journal_entry_ids: Optional[List[str]] = None,
+) -> Dict[str, str]:
     export_id = str(uuid.uuid4())
     download_token = secrets.token_urlsafe(32)
     now = time.time()
@@ -67,8 +80,23 @@ async def _store_csv_export(csv_text: str) -> Dict[str, str]:
             "created_at": now,
             "csv": csv_text,
             "token": download_token,
+            "tenant_id": tenant_id,
+            "mf_journal_entry_ids": list(mf_journal_entry_ids or []),
         }
     return {"export_id": export_id, "token": download_token}
+
+
+async def _get_csv_export_record(export_id: str) -> Optional[Dict[str, Any]]:
+    now = time.time()
+    async with _csv_exports_lock:
+        record = _csv_exports.get(export_id)
+        if not record:
+            return None
+        created_at = float(record.get("created_at", 0))
+        if created_at < (now - _CSV_EXPORT_TTL_SECONDS):
+            _csv_exports.pop(export_id, None)
+            return None
+        return dict(record)
 
 
 async def _get_csv_export(export_id: str) -> Optional[str]:
@@ -98,6 +126,40 @@ async def _get_csv_export_token(export_id: str) -> Optional[str]:
         return str(token) if token else None
 
 
+async def _mark_mf_journal_entries_exported(*, tenant_id: str, entry_ids: List[str]) -> None:
+    if not tenant_id or not entry_ids:
+        return
+
+    try:
+        pool = await _get_db_pool()
+    except HTTPException as e:
+        if e.status_code == 503:
+            logger.info("Skipping export flag update: DB unavailable (%s)", e.detail)
+            return
+        raise
+
+    async with pool.acquire() as conn:
+        try:
+            await conn.execute("SELECT set_config('app.current_tenant_id', $1, true)", str(tenant_id))
+        except Exception:
+            pass
+
+        await conn.execute(
+            """
+            UPDATE mf_journal_entries
+            SET
+                csv_exported = TRUE,
+                csv_exported_at = COALESCE(csv_exported_at, NOW()),
+                status = CASE WHEN status IN ('draft', 'ready') THEN 'exported' ELSE status END,
+                updated_at = NOW()
+            WHERE tenant_id = $1
+              AND id = ANY($2::text[])
+            """,
+            str(tenant_id),
+            entry_ids,
+        )
+
+
 async def _get_db_pool() -> Any:
     """Create a singleton asyncpg pool for pipeline DB persistence."""
     global _db_pool
@@ -109,17 +171,26 @@ async def _get_db_pool() -> Any:
             return _db_pool
 
         if asyncpg is None:
-            raise HTTPException(status_code=500, detail="asyncpg is not installed; cannot persist_db")
+            raise HTTPException(
+                status_code=503,
+                detail="DB persistence is unavailable: asyncpg is not installed",
+            )
 
         dsn = os.getenv("DATABASE_URL")
         if not dsn:
-            raise HTTPException(status_code=500, detail="DATABASE_URL is not set")
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "DATABASE_URL is not set. Set DATABASE_URL (PostgreSQL DSN) before calling /mf/register. "
+                    "Example: postgresql://USER:PASSWORD@HOST:5432/DBNAME"
+                ),
+            )
 
         try:
             _db_pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=5)
         except Exception as e:
             raise HTTPException(
-                status_code=500,
+                status_code=503,
                 detail=(
                     "Failed to connect to DATABASE_URL. "
                     "Check host/port/credentials and that the DB is reachable from where this API is running. "
@@ -177,8 +248,16 @@ async def register_pipeline(
     if not tenant_id:
         raise HTTPException(status_code=400, detail="tenantId is required (in JSON body)")
 
-    # Always persist to DB and always generate MF CSV.
-    db_pool = await _get_db_pool()
+    # Prefer DB persistence when available, but don't hard-fail local/dev flows.
+    persist_db = True
+    db_pool: Any = None
+    try:
+        db_pool = await _get_db_pool()
+    except HTTPException as e:
+        if e.status_code == 503:
+            persist_db = False
+        else:
+            raise
 
     # Prefer tenant-scoped Anthropic key when available.
     predictor: Optional[ClaudePredictor] = None
@@ -215,7 +294,7 @@ async def register_pipeline(
         transactions=transactions,
         predictor=predictor,
         generate_mf_csv=True,
-        persist_db=True,
+        persist_db=persist_db,
         db_pool=db_pool,
         tenant_id=tenant_id,
         invoice_id=None,
@@ -226,7 +305,11 @@ async def register_pipeline(
         raise HTTPException(status_code=400, detail="MF CSV generation failed (no output)")
 
     if as_json:
-        export_info = await _store_csv_export(csv_text)
+        export_info = await _store_csv_export(
+            csv_text,
+            tenant_id=str(tenant_id),
+            mf_journal_entry_ids=list(getattr(result, "persisted_entry_ids", []) or []),
+        )
         export_id = export_info["export_id"]
         token = export_info["token"]
         base_url = _public_base_url_from_request(request) if request is not None else ""
@@ -234,6 +317,7 @@ async def register_pipeline(
         return {
             "count": len(result.transactions),
             "persisted_count": int(result.persisted_count or 0),
+            "db_persistence": "enabled" if persist_db else "skipped",
             "csv_text": csv_text,
             "csv_export_id": export_id,
             "csv_download_url": download_url,
@@ -241,7 +325,7 @@ async def register_pipeline(
             "errors": result.errors,
         }
 
-    return Response(content=csv_text, media_type="text/csv; charset=utf-8")
+    return Response(content=_csv_utf8_with_bom(csv_text), media_type="text/csv; charset=utf-8")
 
 
 @router.get("/exports/{export_id}.csv")
@@ -251,20 +335,35 @@ async def download_csv_export(export_id: str, token: str = Query(...)):
     This endpoint is intended for browser downloads from a Dify chat UI.
     It uses a short-lived signed token instead of normal API auth.
     """
-    expected = await _get_csv_export_token(export_id)
+    record = await _get_csv_export_record(export_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="CSV export not found (expired or invalid id)")
+    expected = str(record.get("token") or "")
     if not expected:
         raise HTTPException(status_code=404, detail="CSV export not found (expired or invalid id)")
     if token != expected:
         raise HTTPException(status_code=401, detail="Invalid or expired download token")
 
-    csv_text = await _get_csv_export(export_id)
+    csv_text = str(record.get("csv") or "")
     if not csv_text:
         raise HTTPException(status_code=404, detail="CSV export not found (expired or invalid id)")
+
+    tenant_id = record.get("tenant_id")
+    entry_ids = record.get("mf_journal_entry_ids")
+    if isinstance(tenant_id, str) and tenant_id.strip() and isinstance(entry_ids, list) and entry_ids:
+        try:
+            await _mark_mf_journal_entries_exported(tenant_id=tenant_id, entry_ids=[str(x) for x in entry_ids if x])
+        except Exception:
+            logger.exception("Failed to update mf_journal_entries export flags for export_id=%s", export_id)
 
     headers = {
         "Content-Disposition": f'attachment; filename="mf_journal_{export_id}.csv"',
     }
-    return Response(content=csv_text, media_type="text/csv; charset=utf-8", headers=headers)
+    return Response(
+        content=_csv_utf8_with_bom(csv_text),
+        media_type="text/csv; charset=utf-8",
+        headers=headers,
+    )
 
 
 # Backward-compatible alias (older flows may still call this path)

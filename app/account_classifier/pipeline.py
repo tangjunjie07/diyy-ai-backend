@@ -28,11 +28,12 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from app.account_classifier.flexible_ocr_loader import extract_transactions_from_inferred_accounts
 from app.account_classifier.mf_export_service import MfExportService
 from app.account_classifier.predictor_claude import ClaudePredictor
+from app.account_classifier.transaction import normalize_transactions
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +45,12 @@ class AccountClassifierPipelineResult:
     transactions: List[Dict[str, Any]]
     mf_csv: Optional[str]
     persisted_count: int = 0
+    persisted_entry_ids: List[str] = None
     errors: List[str] = None
 
     def __post_init__(self):
+        if self.persisted_entry_ids is None:
+            self.persisted_entry_ids = []
         if self.errors is None:
             self.errors = []
 
@@ -157,8 +161,7 @@ def build_mf_csv_from_inferred_accounts(
     if not txs:
         return None
 
-    # Classification is handled in Dify; do not modify txs here.
-    classify_transactions_with_claude(txs, predictor=predictor)
+    classify_transactions(txs, predictor=predictor)
 
     # 内部参照（_ref）は CSV に出さない
     for tx in txs:
@@ -201,9 +204,14 @@ def classify_transactions(
     `predictor` が未指定なら利用可能な `ClaudePredictor` を内部で解決し、
     利用不可なら no-op で返します。
     """
-    # Only call Claude if caller explicitly provided a predictor.
+
     if predictor is None:
-        return txs
+        try:
+            predictor = ClaudePredictor()
+        except Exception as e:
+            logger.debug("Claude predictor is unavailable; skip classification: %s", e)
+            return txs
+
     return classify_transactions_with_claude(txs, predictor=predictor)
 
 
@@ -214,13 +222,13 @@ async def persist_transactions_to_db(
     invoice_id: Optional[str],
     classified_txs: Sequence[Dict[str, Any]],
     strict: bool = False,
-) -> int:
+) -> Tuple[int, List[str]]:
     """分類済み取引を `claude_predictions` と `mf_journal_entries` に保存します。
 
     DB 書き込みロジックを account_classifier 側に閉じ込め、他モジュールは pipeline 呼び出しだけで済むようにします。
     """
     if not classified_txs:
-        return 0
+        return 0, []
     if db_pool is None:
         raise ValueError("db_pool is required when persist_db=True")
     if not tenant_id:
@@ -237,6 +245,7 @@ async def persist_transactions_to_db(
 
     saved = 0
     errors: List[str] = []
+    entry_ids: List[str] = []
     for idx, tx in enumerate(classified_txs, 1):
         try:
             direction = (tx.get("direction") or "expense").lower()
@@ -279,7 +288,7 @@ async def persist_transactions_to_db(
             )
 
             journal_fields = convert_transaction_to_mf_journal_fields(tx)
-            await mf_service.save_journal_entry(
+            entry_id = await mf_service.save_journal_entry(
                 tenant_id=tenant_id,
                 claude_prediction_id=prediction_id or None,
                 transaction_date=journal_fields.get("transaction_date"),
@@ -300,6 +309,8 @@ async def persist_transactions_to_db(
                 status=str(tx.get("journal_status") or "draft"),
                 error_message=tx.get("journal_error_message"),
             )
+            if entry_id:
+                entry_ids.append(entry_id)
             saved += 1
         except Exception as e:
             logger.error("Failed to persist tx %s: %s", idx, e, exc_info=True)
@@ -309,7 +320,7 @@ async def persist_transactions_to_db(
     if strict and errors:
         raise RuntimeError(f"Persist failed for {len(errors)}/{len(classified_txs)} transactions. First error: {errors[0]}")
 
-    return saved
+    return saved, entry_ids
 
 
 async def run_account_classifier(
@@ -368,10 +379,11 @@ async def run_account_classifier(
         # 呼び出し側のリストを想定外に破壊しないよう、dict のみを抽出して扱う
         transactions = [tx for tx in transactions if isinstance(tx, dict)]
 
+    transactions = normalize_transactions(transactions)
+
     if not transactions:
         return AccountClassifierPipelineResult(transactions=[], mf_csv=None, persisted_count=0, errors=[])
 
-    # Classification is handled in Dify; keep function call as a no-op for backward compatibility.
     try:
         classify_transactions(transactions, predictor=predictor)
     except Exception as e:
@@ -383,9 +395,10 @@ async def run_account_classifier(
         mf_csv = build_mf_csv_from_transactions(transactions)
 
     persisted_count = 0
+    persisted_entry_ids: List[str] = []
     if persist_db:
         try:
-            persisted_count = await persist_transactions_to_db(
+            persisted_count, persisted_entry_ids = await persist_transactions_to_db(
                 db_pool=db_pool,
                 tenant_id=str(tenant_id or ""),
                 invoice_id=invoice_id,
@@ -399,6 +412,7 @@ async def run_account_classifier(
         transactions=transactions,
         mf_csv=mf_csv,
         persisted_count=persisted_count,
+        persisted_entry_ids=persisted_entry_ids,
         errors=errors,
     )
 
@@ -433,10 +447,12 @@ def run_pipeline(
             if isinstance(obj, dict):
                 txs.append(obj)
 
-    # No classification in dify-ai-backend.
-    if predictor not in {"none", "skip"}:
-        logger.info("predictor=%s is ignored in dify-ai-backend (classification handled by Dify)", predictor)
-    classify_transactions_with_claude(txs, predictor=None)
+    if predictor in {"claude", "auto"}:
+        try:
+            classify_transactions(txs, predictor=None)
+        except Exception:
+            # best-effort
+            pass
     csv_text = build_mf_csv_from_transactions(txs) or ""
 
     if out_csv_path is not None:
