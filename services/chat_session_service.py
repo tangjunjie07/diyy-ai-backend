@@ -1,23 +1,11 @@
 
 import datetime
 import asyncio
-from prisma import Prisma
+from database import prisma
 
 class ChatSessionService:
     def __init__(self):
-        self.prisma = Prisma()
-        try:
-            # 起動時に一度だけconnect
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(self.prisma.connect())
-            else:
-                loop.run_until_complete(self.prisma.connect())
-        except RuntimeError:
-            # 新規イベントループが必要な場合
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(self.prisma.connect())
+        pass
 
     async def register_chat_file_with_ocr_result(
         self,
@@ -56,7 +44,7 @@ class ChatSessionService:
         }
         if file_size is not None:
             where["fileSize"] = file_size
-        chat_file = await self.prisma.chatfile.find_first(
+        chat_file = await prisma.chatfile.find_first(
             where=where,
             include={"ocrResults": True},
             order={"createdAt": "desc"}  # 最新のものを優先
@@ -67,7 +55,7 @@ class ChatSessionService:
 
     async def register_ai_result(self, chat_file_id: str, result, status: str = None):
         # 既存のAiResultを検索
-        existing = await self.prisma.airesult.find_first(
+        existing = await prisma.airesult.find_first(
             where={"chatFileId": chat_file_id}
         )
         data = {
@@ -76,14 +64,14 @@ class ChatSessionService:
         }
         if existing:
             # 更新
-            return await self.prisma.airesult.update(
+            return await prisma.airesult.update(
                 where={"id": existing.id},
                 data=data
             )
         else:
             # 新規作成
             data["chatFileId"] = chat_file_id
-            return await self.prisma.airesult.create(data)
+            return await prisma.airesult.create(data)
 
     async def update_chat_file(self, chat_file_id: str, tenant_id: str = None, extracted_amount: float = None, extracted_date = None, status: str = None):
         data = {}
@@ -97,15 +85,15 @@ class ChatSessionService:
             data["status"] = status
         # updatedAtカラムが存在する場合は一緒に更新
         data["updatedAt"] = datetime.datetime.now(datetime.timezone.utc)
-        await self.prisma.chatfile.update(
+        await prisma.chatfile.update(
             where={"id": chat_file_id},
             data=data
         )
 
     async def ensure_session_exists(self, user_id: str, dify_id: str):
-        session = await self.prisma.chatsession.find_first(where={"userId": user_id, "difyId": dify_id})
+        session = await prisma.chatsession.find_first(where={"userId": user_id, "difyId": dify_id})
         if not session:
-            await self.prisma.chatsession.create({
+            await prisma.chatsession.create({
                 "userId": user_id,
                 "difyId": dify_id
             })
@@ -136,7 +124,7 @@ class ChatSessionService:
             data["processedAt"] = datetime.datetime.now(datetime.timezone.utc)
         # Noneの値は除外
         data = {k: v for k, v in data.items() if v is not None}
-        return await self.prisma.chatfile.create(data)
+        return await prisma.chatfile.create(data)
 
 
     async def register_ocr_result(
@@ -160,6 +148,6 @@ class ChatSessionService:
         }
         # Noneの値は除外
         data = {k: v for k, v in data.items() if v is not None}
-        await self.prisma.ocrresult.create(data)
+        await prisma.ocrresult.create(data)
 
 chat_session_service = ChatSessionService()
