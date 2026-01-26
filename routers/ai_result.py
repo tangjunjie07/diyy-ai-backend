@@ -3,10 +3,10 @@ from services.chat_session_service import chat_session_service
 import json
 from datetime import datetime
 from typing import Any
-import logging
+# import logging
 
 # 配置日志（如果你的项目已经配置过可以跳过此行）
-logger = logging.getLogger("uvicorn.error")
+# logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter(prefix="/ai", tags=["AI分析"])
 
@@ -16,18 +16,18 @@ async def register_ai_result(
     json_text: Any = Body(...)
 ):
     # --- 日志输出开始 ---
-    print("\n" + "="*50)
-    print(f"🕒 收到 AI 结果请求 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"🏢 Tenant ID: {tenantId}")
-    print(f"数据类型: {type(json_text)}")
-    try:
-        # 将收到的原始数据格式化打印出来，方便 F12 对比
-        debug_output = json_text if not isinstance(json_text, str) else json.loads(json_text)
-        print("📦 JSON_TEXT 内容:")
-        print(json.dumps(debug_output, indent=2, ensure_ascii=False))
-    except Exception:
-        print(f"📦 JSON_TEXT 原始字符串 (解析失败): {json_text}")
-    print("="*50 + "\n")
+    # print("\n" + "="*50)
+    # print(f"🕒 收到 AI 结果请求 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    # print(f"🏢 Tenant ID: {tenantId}")
+    # print(f"数据类型: {type(json_text)}")
+    # try:
+    #     # 将收到的原始数据格式化打印出来，方便 F12 对比
+    #     debug_output = json_text if not isinstance(json_text, str) else json.loads(json_text)
+    #     print("📦 JSON_TEXT 内容:")
+    #     print(json.dumps(debug_output, indent=2, ensure_ascii=False))
+    # except Exception:
+    #     print(f"📦 JSON_TEXT 原始字符串 (解析失败): {json_text}")
+    # print("="*50 + "\n")
     # --- 日志输出结束 ---
 
     try:
