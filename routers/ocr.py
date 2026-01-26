@@ -62,9 +62,10 @@ def extract_confidence(analyze_result) -> float:
 
 def build_ocr_result_dict(file, ocr_result_obj, chat_file_id=None):
     try:
-        ocr_json = json.loads(ocr_result_obj.ocrResult)
-        result_dict = normalize_invoice_result(file.filename, ocr_json)
-    except Exception:
+        result_dict = json.loads(ocr_result_obj.ocrResult)
+        result_dict["filename"] = file.filename  # 确保filename正确
+    except Exception as e:
+        logging.error(f"Failed to parse OCR result for {file.filename}: {e}, raw OCR result length: {len(ocr_result_obj.ocrResult) if ocr_result_obj.ocrResult else 0}")
         result_dict = {
             "filename": file.filename,
             "ocr_content": "",
@@ -157,7 +158,10 @@ async def analyze_invoice(
             analyze_result = poller.result()
             confidence = extract_confidence(analyze_result)
             ocr_result_str = json.dumps(
-                to_json_safe(analyze_result),
+                normalize_invoice_result(
+                    filename=file.filename,
+                    analyze_result=analyze_result
+                ),
                 ensure_ascii=False
             )
             chat_file_new = await chat_session_service.register_chat_file_with_ocr_result(
