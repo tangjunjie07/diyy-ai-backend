@@ -7,6 +7,7 @@ import json
 import requests
 import time
 import subprocess
+import stat
 from typing import List
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,17 +30,28 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     
-    # 强制在启动时下载，这是在 Render 运行环境中最稳妥的办法
+    print("Starting runtime prisma fetch...")
+    # 1. 运行下载
+    subprocess.run(["python", "-m", "prisma", "py", "fetch"], check=True)
+    
+    # 2. 暴力寻找下载的文件并赋予执行权限
+    # 我们直接遍历那个缓存目录
+    base_path = "/opt/render/.cache/prisma-python/binaries"
+    if os.path.exists(base_path):
+        for root, dirs, files in os.walk(base_path):
+            for f in files:
+                if "query-engine" in f:
+                    file_path = os.path.join(root, f)
+                    print(f"Setting executable permission on: {file_path}")
+                    st = os.stat(file_path)
+                    os.chmod(file_path, st.st_mode | stat.S_IEXEC)
+    
+    # 3. 连接
     try:
-        print("Starting runtime prisma fetch...")
-        # 即使已经有了，执行一次 fetch 也就几秒钟，确保万无一失
-        subprocess.run(["python", "-m", "prisma", "py", "fetch"], check=True)
-        print("Fetch successful, connecting...")
         await prisma.connect()
+        print("Connected to Prisma engine successfully!")
     except Exception as e:
-        print(f"Prisma connection failed: {e}")
-        # 如果还是不行，打印一下环境信息帮我们排查
-        print(f"Current Directory: {os.getcwd()}")
+        print(f"Connection failed again: {e}")
 
 @app.on_event("shutdown")
 async def shutdown():
