@@ -1,10 +1,12 @@
-from dotenv import load_dotenv
-load_dotenv()
 
+from dotenv import load_dotenv
+
+load_dotenv()
 import os
 import json
 import requests
 import time
+import subprocess
 from typing import List
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,7 +28,16 @@ app.add_middleware(
 # Prisma 接続管理
 @app.on_event("startup")
 async def startup():
-    await prisma.connect()
+    
+    # 尝试连接，如果失败则在运行时强行下载
+    try:
+        await prisma.connect()
+    except Exception as e:
+        print(f"Prisma connection error, attempting runtime fetch: {e}")
+        # 在运行环境直接下载二进制文件
+        subprocess.run(["python", "-m", "prisma", "py", "fetch"])
+        # 再次尝试连接
+        await prisma.connect()
 
 @app.on_event("shutdown")
 async def shutdown():
