@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: dify-ai-backend
+    env: python
+    plan: free
+    buildCommand: >
+      pip install -r requirements.txt &&
+      prisma generate &&
+      PRISMA_BINARY_CACHE_DIR=/tmp/prisma prisma py fetch
+    startCommand: >
+      PRISMA_BINARY_CACHE_DIR=/tmp/prisma
+      uvicorn main:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: PRISMA_BINARY_CACHE_DIR
+        value: /tmp/prisma
