@@ -29,15 +29,17 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     
-    # 尝试连接，如果失败则在运行时强行下载
+    # 强制在启动时下载，这是在 Render 运行环境中最稳妥的办法
     try:
+        print("Starting runtime prisma fetch...")
+        # 即使已经有了，执行一次 fetch 也就几秒钟，确保万无一失
+        subprocess.run(["python", "-m", "prisma", "py", "fetch"], check=True)
+        print("Fetch successful, connecting...")
         await prisma.connect()
     except Exception as e:
-        print(f"Prisma connection error, attempting runtime fetch: {e}")
-        # 在运行环境直接下载二进制文件
-        subprocess.run(["python", "-m", "prisma", "py", "fetch"])
-        # 再次尝试连接
-        await prisma.connect()
+        print(f"Prisma connection failed: {e}")
+        # 如果还是不行，打印一下环境信息帮我们排查
+        print(f"Current Directory: {os.getcwd()}")
 
 @app.on_event("shutdown")
 async def shutdown():
