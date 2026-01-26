@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from jose import jwt
 from passlib.context import CryptContext
 from config import SECRET_KEY, ALGORITHM
-from prisma import Prisma
+from database import prisma
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -19,10 +19,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 async def authenticate_super_admin(email: str, password: str):
-    prisma = Prisma()
-    await prisma.connect()
     user = await prisma.user.find_unique(where={"email": email})
-    await prisma.disconnect()
     if not user or user.role != "super_admin":
         return None
     print(f"[DEBUG] password: {password}")

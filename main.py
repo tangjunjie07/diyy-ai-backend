@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import ocr, mf, auth, status
 from routers.ai_result import router as ai_result_router
+from database import prisma
 
 app = FastAPI(title="Azure OCR Backend")
 
@@ -21,6 +22,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Prisma 接続管理
+@app.on_event("startup")
+async def startup():
+    await prisma.connect()
+
+@app.on_event("shutdown")
+async def shutdown():
+    await prisma.disconnect()
 
 # ルーター登録
 app.include_router(ocr)
