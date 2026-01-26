@@ -60,10 +60,51 @@ def extract_confidence(analyze_result) -> float:
         logging.warning(f"OCR confidence抽出失敗: {ce}")
     return None
 
+def extract_items_from_json(ocr_json: dict) -> list:
+    items = []
+    tables = ocr_json.get("tables", []) or []
+    for table in tables:
+        table_data = table.get("_data", table)
+        cells = table_data.get("cells", [])
+        for cell in cells:
+            cell_data = cell.get("_data", cell)
+            items.append({
+                "row": cell_data.get("rowIndex"),
+                "col": cell_data.get("columnIndex"),
+                "text": cell_data.get("content")
+            })
+    return items
+
+def extract_structured_data_from_json(ocr_json: dict) -> dict:
+    documents = ocr_json.get("documents", []) or []
+    if not documents:
+        return {}
+    doc = documents[0]
+    doc_data = doc.get("_data", doc)
+    fields = doc_data.get("fields", {})
+    data = {}
+    for key, field in fields.items():
+        field_data = field.get("_data", field)
+        data[key] = {
+            "value": field_data.get("content"),
+            "confidence": field_data.get("confidence")
+        }
+    return data
+
 def build_ocr_result_dict(file, ocr_result_obj, chat_file_id=None):
     try:
-        result_dict = json.loads(ocr_result_obj.ocrResult)
-        result_dict["filename"] = file.filename  # 确保filename正确
+        ocr_json = json.loads(ocr_result_obj.ocrResult)
+        if "ocr_content" in ocr_json:
+            # 新格式，直接使用
+            result_dict = ocr_json
+        else:
+            # 旧格式，从完整对象提取
+            result_dict = {
+                "filename": file.filename,
+                "ocr_content": ocr_json.get("content", ""),
+                "ocr_items": json.dumps(extract_items_from_json(ocr_json), ensure_ascii=False),
+                "ocr_data": json.dumps(extract_structured_data_from_json(ocr_json), ensure_ascii=False)
+            }
     except Exception as e:
         logging.error(f"Failed to parse OCR result for {file.filename}: {e}, raw OCR result length: {len(ocr_result_obj.ocrResult) if ocr_result_obj.ocrResult else 0}")
         result_dict = {
