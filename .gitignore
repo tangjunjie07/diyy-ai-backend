@@ -1,2 +1,34 @@
-.env
+
+# Python
 __pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+.env.*
+
+# VSCode
+.vscode/
+
+# Prisma
+prisma/.env
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# その他
+*.log
+*.sqlite3
+*.db
+
+# テストや一時ファイル
+*.tmp
+*.bak
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Mac
+Icon?

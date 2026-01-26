@@ -1,0 +1,24 @@
+{
+  "summary": "",
+  "file_name": "图片_20260110211904_83_3.jpg",
+  "inferred_accounts": [
+    {
+      "summary": "駐車場利用に関する費用の仕訳",
+      "currency": "JPY",
+      "projectId": "プロジェクトコード",
+      "accounting": [
+        {
+          "date": "2025-12-31",
+          "amount": 1000,
+          "reasoning": "駐車料金は水道光熱費に関連する費用と考えられるため。",
+          "confidence": 0.8,
+          "is_anomaly": false,
+          "accountItem": "水道光熱費",
+          "subAccountItem": "駐車場利用料"
+        }
+      ],
+      "invoiceDate": "2025-12-31",
+      "totalAmount": 1000
+    }
+  ]
+}

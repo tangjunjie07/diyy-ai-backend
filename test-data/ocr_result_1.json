@@ -1,0 +1,27 @@
+{
+  "ocr_data": {
+    "vendor": "\u682a\u5f0f\u4f1a\u793e\u30a2\u30fc\u30af\u30ea\u30f3\u30af"
+  },
+  "ocr_content": ":unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected:\n\u3054\u5229\u7528\u3042\u308a\u304c\u3068\u3046\u3054\u3056\u3044\u307e\u3057\u305f :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected:\n\u307e\u305f\u306e\u304a\u8d8a\u3057\u3092 :unselected: :unselected:\n\u304a\u5f85\u3061\u3057\u3066\u304a\u308a\u307e\u3059 :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected: :unselected:\n\u9818 \u53ce \u8a3c\n\u8eca\u5ba4005\nNo.31167-01 048498\n\u5165\u5eab\u65e5\u6642\n\u7cbe\u7b97\u65e5\u6642\n2025\u5e7412\u670831\u65e5 17\u664202\u5206\n\u99d0\u8eca\u6642\u9593\n2025\u5e7412\u670831\u65e5 18\u664250\u5206\n1\u6642\u959348\u5206\n\u767b\u9332\u756a\u53f7\nT5011001046175\n\u99d0\u8eca\u6599\u91d1(\u4e00\u822c\u8eca)\n\u682a\u5f0f\u4f1a\u793e\u30a2\u30fc\u30af\u30ea\u30f3\u30af\n1,000\u5186\n\u73fe\u91d1\u8a08\n1,000\u5186\n\u6d88\u8cbb\u7a0e\u738710%(\u5185\u7a0e)\n\u6295\u5165\u984d\n1,000\u5186\n\u91e3\u92ad\u984d\n0\u5186\n\u767a\u884c\u99d0\u8eca\u5834\n\u30d7\u30e9\u30b9\u897f\u5ddd\u53e3\u7b2c1 :unselected:",
+  "inferred_accounts": [
+    {
+      "totalAmount": 1000,
+      "invoiceDate": "2025-12-31",
+      "currency": "JPY",
+      "projectId": "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30b3\u30fc\u30c9",
+      "accounting": [
+        {
+          "accountItem": "\u6c34\u9053\u5149\u71b1\u8cbb",
+          "subAccountItem": "\u99d0\u8eca\u5834\u5229\u7528\u6599",
+          "amount": 1000,
+          "date": "2025-12-31",
+          "confidence": 0.8,
+          "reasoning": "\u99d0\u8eca\u6599\u91d1\u306f\u6c34\u9053\u5149\u71b1\u8cbb\u306b\u95a2\u9023\u3059\u308b\u8cbb\u7528\u3068\u8003\u3048\u3089\u308c\u308b\u305f\u3081\u3002",
+          "is_anomaly": false
+        }
+      ],
+      "summary": "\u99d0\u8eca\u5834\u5229\u7528\u306b\u95a2\u3059\u308b\u8cbb\u7528\u306e\u4ed5\u8a33"
+    }
+  ],
+  "file_name": "\u56fe\u7247_20260110211904_83_3.jpg"
+}

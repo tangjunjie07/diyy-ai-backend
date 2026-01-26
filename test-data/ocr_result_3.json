@@ -1,0 +1,27 @@
+{
+  "ocr_data": {
+    "vendor": "\u6d77\u9bae \u30d0\u30eb"
+  },
+  "ocr_content": "\u53ce\n\u8a3c\nNo.\n\u5e74\n\u6708\n\u65e5\n\u6a5f\u9304\u7fa9\u5668T4010501002952\n\u00a521692\n\u4f46\n\u4e0a\u8a18\u6b63\u306b\u9818\u53ce\u3044\u305f\u3057\u307e\u3057\u305f\n\u30d0 \u30eb\n\u3010\u5185 \u8a33\u3011\n\u73fe\n\u91d1\n\u7a0e\n\u7387\n%\n\u3051\u3044\n\u5c0f\u5207\u624b\n\u91d1\u984d(\u7a0e\u629c\u00b7\u7a0e\u8fbc)\n\u6d88\u8cbb\u7a0e\u984d\u7b49\n\u624b\n\u5f62\n\u7a0e\n\u7387\n%\n\u91d1\u984d(\u7a0e\u629c\u00b7\u7a0e\u8fbc)\n\u6d77\u9bae \u30d0\u30eb\n1\n\u6d88\u8cbb\u7a0e\u984d\u7b49\n\u65b0\u5bbf\u533a\u767e\u4eba\u753a 1-20-16 :selected:\nTEL 03-6908-5571 :unselected: :selected: :selected: :unselected: :unselected: :selected: :selected: :unselected: :selected: :unselected: :unselected: :selected: :unselected: :unselected: :unselected: :unselected: :unselected:",
+  "inferred_accounts": [
+    {
+      "totalAmount": 21692,
+      "invoiceDate": "YYYY-MM-DD",
+      "currency": "JPY",
+      "projectId": "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30b3\u30fc\u30c9",
+      "accounting": [
+        {
+          "accountItem": "\u798f\u5229\u539a\u751f\u8cbb",
+          "subAccountItem": "\u793e\u5185\u30a4\u30d9\u30f3\u30c8",
+          "amount": 21692,
+          "date": "YYYY-MM-DD",
+          "confidence": 0.7,
+          "reasoning": "\u6d77\u9bae\u30d0\u30eb\u306f\u793e\u5185\u30a4\u30d9\u30f3\u30c8\u3084\u798f\u5229\u539a\u751f\u306b\u95a2\u9023\u3059\u308b\u652f\u51fa\u3068\u8003\u3048\u3089\u308c\u308b\u305f\u3081\u3001\u798f\u5229\u539a\u751f\u8cbb\u306b\u5206\u985e\u3057\u307e\u3057\u305f\u3002",
+          "is_anomaly": false
+        }
+      ],
+      "summary": "\u6d77\u9bae\u30d0\u30eb\u3067\u306e\u652f\u51fa\u306f\u793e\u5185\u30a4\u30d9\u30f3\u30c8\u306b\u95a2\u9023\u3059\u308b\u3082\u306e\u3068\u63a8\u6e2c\u3055\u308c\u308b\u305f\u3081\u3001\u798f\u5229\u539a\u751f\u8cbb\u3068\u3057\u3066\u51e6\u7406\u3057\u307e\u3057\u305f\u3002"
+    }
+  ],
+  "file_name": "\u56fe\u7247_20260110211849_82_3.jpg"
+}
