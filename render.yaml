@@ -6,11 +6,11 @@ services:
     buildCommand: >
       pip install -r requirements.txt &&
       prisma generate &&
-      PRISMA_BINARY_CACHE_DIR=/tmp/prisma prisma py fetch
+      PRISMA_BINARY_CACHE_DIR=prisma-binaries prisma py fetch
     startCommand: >
-      PRISMA_BINARY_CACHE_DIR=/tmp/prisma
+      PRISMA_BINARY_CACHE_DIR=prisma-binaries
       uvicorn main:app --host 0.0.0.0 --port $PORT
     autoDeploy: true
     envVars:
       - key: PRISMA_BINARY_CACHE_DIR
-        value: /tmp/prisma
+        value: prisma-binaries
