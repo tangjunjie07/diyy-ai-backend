@@ -6,8 +6,6 @@ import os
 import json
 import requests
 import time
-import subprocess
-import stat
 from typing import List
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,29 +27,15 @@ app.add_middleware(
 # Prisma 接続管理
 @app.on_event("startup")
 async def startup():
-    
-    print("Starting runtime prisma fetch...")
-    # 1. 运行下载
-    subprocess.run(["python", "-m", "prisma", "py", "fetch"], check=True)
-    
-    # 2. 暴力寻找下载的文件并赋予执行权限
-    # 我们直接遍历那个缓存目录
-    base_path = "/opt/render/.cache/prisma-python/binaries"
-    if os.path.exists(base_path):
-        for root, dirs, files in os.walk(base_path):
-            for f in files:
-                if "query-engine" in f:
-                    file_path = os.path.join(root, f)
-                    print(f"Setting executable permission on: {file_path}")
-                    st = os.stat(file_path)
-                    os.chmod(file_path, st.st_mode | stat.S_IEXEC)
-    
-    # 3. 连接
     try:
         await prisma.connect()
         print("Connected to Prisma engine successfully!")
     except Exception as e:
-        print(f"Connection failed again: {e}")
+        print(f"Connection failed: {e}")
+        print(
+            "Hint: run `python -m prisma generate` and `python -m prisma py fetch` "
+            "during build, and set PRISMA_BINARY_CACHE_DIR to a writable path."
+        )
 
 @app.on_event("shutdown")
 async def shutdown():
