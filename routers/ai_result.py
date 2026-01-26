@@ -2,26 +2,44 @@ from fastapi import APIRouter, Body
 from services.chat_session_service import chat_session_service
 import json
 from datetime import datetime
-from typing import Any  # 导入 Any
+from typing import Any
+import logging
+
+# 配置日志（如果你的项目已经配置过可以跳过此行）
+logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter(prefix="/ai", tags=["AI分析"])
 
 @router.post("/result")
 async def register_ai_result(
     tenantId: str = Body(...),
-    json_text: Any = Body(...)  # 1. 改为 Any，不再强制要求 str
+    json_text: Any = Body(...)
 ):
+    # --- 日志输出开始 ---
+    print("\n" + "="*50)
+    print(f"🕒 收到 AI 结果请求 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"🏢 Tenant ID: {tenantId}")
+    print(f"数据类型: {type(json_text)}")
+    try:
+        # 将收到的原始数据格式化打印出来，方便 F12 对比
+        debug_output = json_text if not isinstance(json_text, str) else json.loads(json_text)
+        print("📦 JSON_TEXT 内容:")
+        print(json.dumps(debug_output, indent=2, ensure_ascii=False))
+    except Exception:
+        print(f"📦 JSON_TEXT 原始字符串 (解析失败): {json_text}")
+    print("="*50 + "\n")
+    # --- 日志输出结束 ---
+
     try:
         if not tenantId:
             return {"success": False, "error": "tenantId is required"}
 
-        # 2. 兼容性处理：如果是字符串则解析，如果是对象/数组则直接使用
+        # 兼容处理
         if isinstance(json_text, str):
             ai_results = json.loads(json_text)
         else:
             ai_results = json_text
 
-        # 确保 ai_results 是列表格式
         if not isinstance(ai_results, list):
             ai_results = [ai_results]
 
@@ -39,14 +57,12 @@ async def register_ai_result(
                 except Exception:
                     extracted_date = None
 
-            # AiResult登録
             await chat_session_service.register_ai_result(
                 chat_file_id=chat_file_id,
                 result=json.dumps(result, ensure_ascii=False),
                 status="completed"
             )
             
-            # ChatFile更新
             await chat_session_service.update_chat_file(
                 chat_file_id=chat_file_id,
                 tenant_id=tenantId,
@@ -56,6 +72,6 @@ async def register_ai_result(
             )
         return {"success": True}
     except Exception as e:
-        # 这里建议打印一下 e，方便调试
-        print(f"Error in register_ai_result: {str(e)}")
+        # 错误时打印堆栈信息
+        print(f"❌ 处理出错: {str(e)}")
         return {"success": False, "error": str(e)}
