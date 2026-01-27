@@ -3,17 +3,17 @@
 ## OCR登録API サンプルcurl（multipart/form-data）
 ```sh
 curl -X POST http://localhost:8000/analyze/invoice \
-   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzdXBlcmFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6InN1cGVyX2FkbWluIiwidXNlcl9pZCI6ImNta242eHY0ZTAwMDAwdmo2MDh3YXdrbDEifQ.ajk44FQQ9zi6qNLciW47vJdoUbDlSQYCko-9wzVXkac" \
+   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzdXBlcmFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6InN1cGVyX2FkbWluIiwidXNlcl9pZCI6ImNta242eHY0ZTAwMDAwdmo2MDh3YXdrbDEifQ.ejuCl2Er70_6TCyOcV9YBXtnh824NjOhVXsVGvPYpLs" \
    -F "userId=cmknaf2a60002q7j64u1qzo29" \
    -F "difyId=d94f1049-1d89-4839-9af5-956b43425430" \
    -F "tenantId=cmknae8ra0000q7j6ay572od3" \
-   -F "files=@/Users/junjietang/Projects/dify-ai-backend/test-data/图片_20260110211823_81_3.jpg"
+   -F "files=@/Users/junjietang/Projects/dify-ai-backend/test-data/株式会社ブリッジワールドコンサルティング御中_請求書_INV-106002485.pdf"
 ```
 
 ## AI登録API サンプルcurl（application/json）
 ```sh
 curl -X POST http://localhost:8000/ai/result \
-   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzdXBlcmFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6InN1cGVyX2FkbWluIiwidXNlcl9pZCI6ImNta242eHY0ZTAwMDAwdmo2MDh3YXdrbDEifQ.ajk44FQQ9zi6qNLciW47vJdoUbDlSQYCko-9wzVXkac" \
+   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzdXBlcmFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6InN1cGVyX2FkbWluIiwidXNlcl9pZCI6ImNta242eHY0ZTAwMDAwdmo2MDh3YXdrbDEifQ.ejuCl2Er70_6TCyOcV9YBXtnh824NjOhVXsVGvPYpLs" \
    -H "Content-Type: application/json" \
    -d '{
       "tenantId": "cmknae8ra0000q7j6ay572od3",
@@ -25,7 +25,7 @@ curl -X POST http://localhost:8000/ai/result \
 ```
 curl -X POST http://localhost:8000/auth/token \
 	-H "Content-Type: application/json" \
-	-d '{"email":"your_superadmin_email","password":"your_password"}'
+	-d '{"email":"superadmin@example.com","password":"superadmin1234"}'
 ```
 
 ### トークン検証（認証済みステータス取得）
