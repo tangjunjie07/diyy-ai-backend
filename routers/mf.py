@@ -19,6 +19,7 @@ from app.account_classifier.flexible_ocr_loader import extract_transactions_from
 from app.account_classifier.predictor_claude import ClaudePredictor
 from app.repos.tenant_api_secrets_repo import PROVIDER_ANTHROPIC, get_tenant_api_secret
 from auth import verify_token
+from config import APP_PUBLIC_URL
 from services.chat_session_service import chat_session_service
 
 logger = logging.getLogger(__name__)
@@ -42,22 +43,6 @@ _CSV_EXPORT_TTL_SECONDS = int(os.getenv("MF_CSV_EXPORT_TTL_SECONDS", "900"))  # 
 def _csv_utf8_with_bom(csv_text: str) -> bytes:
     # Excel on Windows often mis-detects UTF-8 without BOM.
     return ("\ufeff" + (csv_text or "")).encode("utf-8")
-
-
-def _public_base_url_from_request(request: Request) -> str:
-    """Return a browser-reachable base URL.
-
-    - Prefer explicit env override.
-    - When called from Dify container, Host may be host.docker.internal which browsers may not resolve.
-      In local dev, rewrite to localhost.
-    """
-    override = os.getenv("PUBLIC_BACKEND_BASE_URL")
-    if override and override.strip():
-        return override.strip().rstrip("/")
-
-    base = str(request.base_url).rstrip("/")
-    # Local dev convenience: replace host.docker.internal with localhost.
-    return base.replace("host.docker.internal", "localhost")
 
 
 async def _store_csv_export(
@@ -312,7 +297,7 @@ async def register_pipeline(
         )
         export_id = export_info["export_id"]
         token = export_info["token"]
-        base_url = _public_base_url_from_request(request) if request is not None else ""
+        base_url = APP_PUBLIC_URL
         download_url = f"{base_url}/mf/exports/{export_id}.csv?token={token}" if base_url else None
         return {
             "count": len(result.transactions),
