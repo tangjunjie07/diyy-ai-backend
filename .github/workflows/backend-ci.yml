@@ -81,9 +81,19 @@ jobs:
           asyncio.run(main())
           PY
 
+      - name: Verify super admin exists (psql)
+        run: |
+          set -euo pipefail
+          echo "=== super_admin user check ==="
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT id, email, role, tenant_id, created_at
+          FROM app_users
+          WHERE email = 'superadmin@example.com';
+          SQL
+
       - name: Start API server
         run: |
-          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          nohup uvicorn main:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 &
           for i in {1..30}; do
             if curl -sSf http://localhost:8000/openapi.json >/dev/null; then
               exit 0
@@ -91,31 +101,50 @@ jobs:
             sleep 1
           done
           echo "API did not become ready in time" >&2
+          echo "=== uvicorn.log ===" >&2
+          tail -n 200 uvicorn.log >&2 || true
           exit 1
 
       - name: Verify token issuance and /status
         run: |
           set -euo pipefail
-          TOKEN=$(curl -sS -f -X POST http://localhost:8000/auth/token \
+          HTTP_CODE=$(curl -sS -o /tmp/auth_token.json -w "%{http_code}" -X POST http://localhost:8000/auth/token \
             -H "Content-Type: application/json" \
-            -d '{"email":"superadmin@example.com","password":"superadmin1234"}' \
-            | python - <<'PY'
-          import sys, json
-          raw = sys.stdin.read().strip()
-          if not raw:
-              raise SystemExit("Empty response from /auth/token")
-          data = json.loads(raw)
-          print(data.get("access_token", ""))
+            -d '{"email":"superadmin@example.com","password":"superadmin1234"}' || true)
+          echo "Auth token HTTP status: $HTTP_CODE"
+          echo "Auth token response body:"
+          cat /tmp/auth_token.json || true
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "=== uvicorn.log ===" >&2
+            tail -n 200 uvicorn.log >&2 || true
+            exit 1
+          fi
+          TOKEN=$(python - <<'PY'
+          import json
+          with open("/tmp/auth_token.json","r") as f:
+              data = json.load(f)
+          print(data.get("access_token",""))
           PY
           )
           if [ -z "$TOKEN" ]; then
             echo "Failed to get access token" >&2
+            echo "=== uvicorn.log ===" >&2
+            tail -n 200 uvicorn.log >&2 || true
             exit 1
           fi
-          STATUS_JSON=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/status)
+          STATUS_HTTP=$(curl -sS -o /tmp/status.json -w "%{http_code}" -H "Authorization: Bearer $TOKEN" http://localhost:8000/status || true)
+          echo "Status HTTP code: $STATUS_HTTP"
+          echo "Status response body:"
+          cat /tmp/status.json || true
+          if [ "$STATUS_HTTP" != "200" ]; then
+            echo "=== uvicorn.log ===" >&2
+            tail -n 200 uvicorn.log >&2 || true
+            exit 1
+          fi
           python - <<'PY'
-          import json, sys
-          data = json.loads(sys.argv[1])
+          import json
+          with open("/tmp/status.json","r") as f:
+              data = json.load(f)
           if data.get("status") != "ok":
               raise SystemExit("Status check failed: " + json.dumps(data))
-          PY "$STATUS_JSON"
+          PY
