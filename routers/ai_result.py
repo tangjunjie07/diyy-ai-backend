@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Depends
 from services.chat_session_service import chat_session_service
 import json
 from datetime import datetime
 from typing import Any
+from auth import verify_token
 # import logging
 
 # 配置日志（如果你的项目已经配置过可以跳过此行）
@@ -13,7 +14,8 @@ router = APIRouter(prefix="/ai", tags=["AI分析"])
 @router.post("/result")
 async def register_ai_result(
     tenantId: str = Body(...),
-    json_text: Any = Body(...)
+    json_text: Any = Body(...),
+    token_payload: dict = Depends(verify_token),
 ):
     # --- 日志输出开始 ---
     # print("\n" + "="*50)
