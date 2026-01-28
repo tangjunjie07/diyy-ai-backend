@@ -1,0 +1,120 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [ main, master, develop ]
+  push:
+    branches: [ main, master, develop ]
+
+jobs:
+  backend-check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dify_ai_backend_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dify_ai_backend_test
+      JWT_SECRET_KEY: test-secret
+      JWT_ALGORITHM: HS256
+      AZURE_ENDPOINT: https://example.com
+      AZURE_KEY: dummy-key
+      APP_PUBLIC_URL: http://localhost:8000
+      PRISMA_BINARY_CACHE_DIR: ${{ github.workspace }}/.prisma
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.7"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Prisma generate & migrate
+        run: |
+          prisma generate --schema prisma/schema.prisma
+          prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Seed super admin for token test
+        run: |
+          python - <<'PY'
+          import asyncio
+          from passlib.context import CryptContext
+          from prisma import Prisma
+
+          async def main():
+              db = Prisma()
+              await db.connect()
+              email = "superadmin@example.com"
+              password = "superadmin1234"
+              pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+              hashed = pwd_context.hash(password)
+              user = await db.user.find_unique(where={"email": email})
+              if user:
+                  await db.user.update(
+                      where={"email": email},
+                      data={"password": hashed, "role": "super_admin"},
+                  )
+              else:
+                  await db.user.create(
+                      data={
+                          "email": email,
+                          "name": "Super Administrator",
+                          "password": hashed,
+                          "role": "super_admin",
+                          "tenantId": None,
+                      }
+                  )
+              await db.disconnect()
+
+          asyncio.run(main())
+          PY
+
+      - name: Start API server
+        run: |
+          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          for i in {1..30}; do
+            if curl -sSf http://localhost:8000/openapi.json >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API did not become ready in time" >&2
+          exit 1
+
+      - name: Verify token issuance and /status
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -s -X POST http://localhost:8000/auth/token \
+            -H "Content-Type: application/json" \
+            -d '{"email":"superadmin@example.com","password":"superadmin1234"}' \
+            | python - <<'PY'
+          import sys, json
+          data = json.load(sys.stdin)
+          print(data.get("access_token", ""))
+          PY
+          )
+          if [ -z "$TOKEN" ]; then
+            echo "Failed to get access token" >&2
+            exit 1
+          fi
+          STATUS_JSON=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/status)
+          python - <<'PY'
+          import json, sys
+          data = json.loads(sys.argv[1])
+          if data.get("status") != "ok":
+              raise SystemExit("Status check failed: " + json.dumps(data))
+          PY "$STATUS_JSON"
