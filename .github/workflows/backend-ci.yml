@@ -3,8 +3,6 @@ name: Backend CI
 on:
   pull_request:
     branches: [ main, master, develop ]
-  push:
-    branches: [ main, master, develop ]
 
 jobs:
   backend-check:
@@ -98,12 +96,15 @@ jobs:
       - name: Verify token issuance and /status
         run: |
           set -euo pipefail
-          TOKEN=$(curl -s -X POST http://localhost:8000/auth/token \
+          TOKEN=$(curl -sS -f -X POST http://localhost:8000/auth/token \
             -H "Content-Type: application/json" \
             -d '{"email":"superadmin@example.com","password":"superadmin1234"}' \
             | python - <<'PY'
           import sys, json
-          data = json.load(sys.stdin)
+          raw = sys.stdin.read().strip()
+          if not raw:
+              raise SystemExit("Empty response from /auth/token")
+          data = json.loads(raw)
           print(data.get("access_token", ""))
           PY
           )
